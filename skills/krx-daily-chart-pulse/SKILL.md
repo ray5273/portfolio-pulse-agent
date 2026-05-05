@@ -1,0 +1,70 @@
+---
+name: krx-daily-chart-pulse
+description: Generate daily KRX chart artifacts and Hermes Telegram-ready portfolio pulse payloads without handling delivery secrets.
+---
+
+# krx-daily-chart-pulse
+
+Generate a daily KRX chart pulse for a configured watchlist and prepare Telegram-ready payload artifacts for Hermes delivery.
+
+Telegram images are rendered by the vendored `ray5273/stock-analysis-skill` `kr-stock-analysis` `chart-basics.js` workflow: main trend, overlay, and momentum charts.
+
+## When To Use
+
+Use this skill when asked to run, summarize, schedule, or inspect the daily Korean stock portfolio pulse. The skill writes local artifacts and does not handle Telegram secrets directly.
+
+## Command
+
+From the repository root:
+
+```bash
+node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json
+```
+
+For deterministic local testing:
+
+```bash
+node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json --dry-run
+```
+
+For Hermes Telegram cron delivery:
+
+```bash
+node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json --emit-hermes-send-batches
+```
+
+Useful options:
+
+- `--output-dir <path>`: base artifact directory, default `.tmp/portfolio-pulse`
+- `--date <YYYY-MM-DD>`: run date
+- `--only <tickers>`: comma-separated ticker filter
+- `--emit-payload`: print a machine-readable run summary to stdout
+- `--emit-hermes-report`: print a Markdown report to stdout with absolute `MEDIA:` PNG lines for Hermes
+- `--emit-hermes-send-batches`: print a JSON array of per-ticker Hermes send batches
+
+## Output Contract
+
+For each ticker, write:
+
+- `chart-data.json`
+- `chart-analysis.md`
+- `message.md`
+- `send-payload.json`
+- `chart.png`
+- `chart-overlay.png`
+- `chart-momentum.png`
+- `result.json`
+
+The default root is `.tmp/portfolio-pulse/YYYY-MM-DD/<ticker>/`.
+
+## Delivery
+
+Do not ask for Telegram secrets. Hermes owns Telegram delivery and uses its configured home channel for `target="telegram"`. Use `--deliver local` in Hermes cron configuration so the cron final response is not automatically delivered to Telegram.
+
+For Telegram image attachments in cron, attach `hermes-send-krx-batches.py` as the job script. Current Hermes cron sessions disable the interactive `messaging` toolset, so the script runs the CLI with `--emit-hermes-send-batches`, parses stdout as a JSON array, and calls Hermes' own `send_message` implementation with `target="telegram"` in array order. The message body is `batch.text` followed by three plain `MEDIA:/absolute/path/file.png` lines from `batch.media`, preserving media order. It waits for one ticker send to succeed before sending the next ticker.
+
+Each successful ticker batch includes `chart.png`, `chart-overlay.png`, and `chart-momentum.png` in that order. `MEDIA:` lines are still converted by Hermes into native image attachments, but they should appear inside each per-ticker `send_message` call, not in the cron final response. The final response should be a short local summary such as `Sent N/M ticker batches`.
+
+`send-payload.json` and `result.json` intentionally keep relative artifact paths. Absolute paths are emitted only in Hermes-facing report or send-batch outputs.
+
+The Noto Sans KR file is vendored from `ray5273/stock-analysis-skill`, but high-quality Hangul text masks require the repo-local `.tmp/krx-chart-font-venv` Pillow helper. The CLI prepares that venv automatically before rendering and passes it to `chart-basics.js`; first run or smoke test may need network access to install Pillow. Renderer diagnostics containing `external=false` or `pillow-missing` are treated as artifact failures so broken Hangul fallback charts are not delivered.

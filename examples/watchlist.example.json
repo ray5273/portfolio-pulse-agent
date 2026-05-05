@@ -1,0 +1,14 @@
+[
+  {
+    "ticker": "005930",
+    "name": "Samsung Electronics",
+    "market": "KOSPI",
+    "memo": "Large-cap benchmark and memory cycle proxy"
+  },
+  {
+    "ticker": "066970",
+    "name": "L&F",
+    "market": "KOSDAQ",
+    "memo": "Battery materials watch item"
+  }
+]

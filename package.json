@@ -1,0 +1,16 @@
+{
+  "name": "kr-portfolio-pulse-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "daily-krx-chart-pulse": "./skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js"
+  },
+  "scripts": {
+    "smoke": "bash scripts/smoke-test.sh",
+    "pulse:dry-run": "node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
