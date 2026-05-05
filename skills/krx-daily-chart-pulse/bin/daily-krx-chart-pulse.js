@@ -92,6 +92,14 @@ function absFromResult(filePath) {
   return path.resolve(process.cwd(), filePath);
 }
 
+function signalLabel(signal) {
+  if (signal === "bullish") return "강세";
+  if (signal === "caution") return "주의";
+  if (signal === "neutral") return "중립";
+  if (!signal) return "알 수 없음";
+  return String(signal);
+}
+
 function renderHermesReport(summary) {
   const okResults = summary.results.filter((result) => result.ok);
   const failedResults = summary.results.filter((result) => !result.ok);
@@ -99,9 +107,9 @@ function renderHermesReport(summary) {
   const lines = [
     `# KRX Daily Chart Pulse - ${summary.runDate}`,
     "",
-    `- Success: ${summary.okCount}/${summary.total}`,
-    `- Failed: ${summary.failCount}`,
-    `- Dry run: ${summary.dryRun ? "yes" : "no"}`,
+    `- 성공: ${summary.okCount}/${summary.total}`,
+    `- 실패: ${summary.failCount}`,
+    `- 드라이런: ${summary.dryRun ? "예" : "아니오"}`,
     ""
   ];
 
@@ -111,7 +119,7 @@ function renderHermesReport(summary) {
     if (payload?.text) {
       lines.push(payload.text, "");
     } else {
-      lines.push(`Signal: ${result.signal}`, `Score: ${result.score}/100`, "");
+      lines.push(`신호: ${signalLabel(result.signal)}`, `점수: ${result.score}/100`, "");
     }
     lines.push(
       `MEDIA:${absFromResult(result.files.main)}`,
@@ -122,7 +130,7 @@ function renderHermesReport(summary) {
   }
 
   if (failedResults.length > 0) {
-    lines.push("## Failed", "");
+    lines.push("## 실패", "");
     for (const result of failedResults) {
       lines.push(`- ${result.ticker} ${result.name}: ${result.error}`);
     }
@@ -134,8 +142,8 @@ function renderHermesReport(summary) {
 
 function fallbackText(result) {
   return [
-    `${result.ticker} ${result.name}: ${String(result.signal || "unknown").toUpperCase()}`,
-    `Score: ${Number.isFinite(result.score) ? `${result.score}/100` : "n/a"}`
+    `${result.ticker} ${result.name}: ${signalLabel(result.signal)}`,
+    `점수: ${Number.isFinite(result.score) ? `${result.score}/100` : "n/a"}`
   ].join("\n");
 }
 

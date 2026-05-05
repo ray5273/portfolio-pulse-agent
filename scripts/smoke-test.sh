@@ -74,7 +74,7 @@ node --input-type=module -e '
     if (!batch.ticker || !batch.name || typeof batch.text !== "string") {
       throw new Error(`Invalid batch shape for ${batch.ticker || "unknown"}`);
     }
-    if (!batch.text.includes(batch.ticker) || !batch.text.includes(batch.name) || !batch.text.includes("Close")) {
+    if (!batch.text.includes(batch.ticker) || !batch.text.includes(batch.name) || !batch.text.includes("종가")) {
       throw new Error(`Batch text is missing ticker, name, or chart summary for ${batch.ticker}`);
     }
     if (!Array.isArray(batch.media) || batch.media.length !== 3) {
@@ -111,9 +111,9 @@ for ticker in 005930 066970; do
     fi
   done
   for phrase in \
-    "main trend chart" \
-    "overlay chart" \
-    "momentum chart" \
+    "주가 추세 차트" \
+    "보조지표 차트" \
+    "모멘텀 차트" \
     "MACD" \
     "ADX"; do
     if ! grep -Fq "$phrase" "$ticker_dir/chart-analysis.md"; then
@@ -138,6 +138,16 @@ if [[ "$media_count" != "6" ]]; then
   echo "Expected 6 Hermes MEDIA PNG lines, found $media_count" >&2
   exit 1
 fi
+
+for phrase in \
+  "- 성공: 2/2" \
+  "- 실패: 0" \
+  "- 드라이런: 예"; do
+  if ! grep -Fq -- "$phrase" "$HERMES_REPORT"; then
+    echo "Missing Korean Hermes report summary phrase: $phrase" >&2
+    exit 1
+  fi
+done
 
 if grep -R -E 'chart-(price|volume|pulse)\.png' "$OUT_DIR" "$SUMMARY" "$HERMES_REPORT" "$HERMES_BATCHES" >/tmp/krx-pulse-old-chart-ref.out; then
   echo "Old chart artifact reference found:" >&2

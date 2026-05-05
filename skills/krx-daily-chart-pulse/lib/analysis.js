@@ -10,6 +10,13 @@ function krw(value) {
   return Math.round(value).toLocaleString("en-US");
 }
 
+function signalLabel(signal) {
+  if (signal === "bullish") return "강세";
+  if (signal === "caution") return "주의";
+  if (signal === "neutral") return "중립";
+  return signal || "n/a";
+}
+
 export function analyzeTicker({ ticker, name, rows, indicators }) {
   const latest = rows[rows.length - 1];
   const previous = rows[rows.length - 2] || latest;
@@ -75,16 +82,16 @@ export function renderAnalysisMarkdown(analysis) {
   return [
     `# ${analysis.ticker} ${analysis.name}`,
     "",
-    `- As of: ${analysis.asOf}`,
-    `- Signal: ${analysis.signal}`,
-    `- Score: ${analysis.score}/100`,
-    `- Close: ${analysis.lastCloseText} (${analysis.changeText})`,
-    `- Momentum vs SMA20: ${analysis.momentumText}`,
+    `- 기준일: ${analysis.asOf}`,
+    `- 신호: ${signalLabel(analysis.signal)}`,
+    `- 점수: ${analysis.score}/100`,
+    `- 종가: ${analysis.lastCloseText} (${analysis.changeText})`,
+    `- SMA20 대비 모멘텀: ${analysis.momentumText}`,
     `- RSI14: ${analysis.rsiText}`,
-    `- Volume ratio vs 20D average: ${analysis.volumeRatioText}`,
-    `- Drawdown from 60D high: ${analysis.drawdownText}`,
+    `- 20일 평균 대비 거래량: ${analysis.volumeRatioText}`,
+    `- 60일 고점 대비 낙폭: ${analysis.drawdownText}`,
     "",
-    "## Read",
+    "## 해석",
     "",
     buildRead(analysis),
     ""
@@ -93,18 +100,18 @@ export function renderAnalysisMarkdown(analysis) {
 
 export function renderMessage(analysis, artifactPaths) {
   return [
-    `${analysis.ticker} ${analysis.name}: ${analysis.signal.toUpperCase()} (${analysis.score}/100)`,
-    `Close ${analysis.lastCloseText} (${analysis.changeText}), momentum ${analysis.momentumText}, RSI ${analysis.rsiText}, volume ${analysis.volumeRatioText}.`,
-    `Artifacts: ${artifactPaths.main}, ${artifactPaths.overlay}, ${artifactPaths.momentum}`
+    `${analysis.ticker} ${analysis.name}: ${signalLabel(analysis.signal)} (${analysis.score}/100)`,
+    `종가 ${analysis.lastCloseText} (${analysis.changeText}), 모멘텀 ${analysis.momentumText}, RSI ${analysis.rsiText}, 거래량 ${analysis.volumeRatioText}.`,
+    `차트: ${artifactPaths.main}, ${artifactPaths.overlay}, ${artifactPaths.momentum}`
   ].join("\n");
 }
 
 function buildRead(analysis) {
   if (analysis.signal === "bullish") {
-    return "Trend and relative position are constructive. Watch whether volume confirms follow-through without an overbought RSI extension.";
+    return "추세와 상대 위치가 우호적입니다. RSI 과열이 심해지지 않는 범위에서 거래량이 후속 흐름을 확인해 주는지 확인하세요.";
   }
   if (analysis.signal === "caution") {
-    return "Price action is weak relative to recent trend references. Keep position sizing conservative until momentum and drawdown improve.";
+    return "최근 추세 기준 대비 가격 흐름이 약합니다. 모멘텀과 낙폭이 개선되기 전까지는 포지션 규모를 보수적으로 유지하세요.";
   }
-  return "Setup is mixed. Wait for clearer price confirmation or volume expansion before treating the move as durable.";
+  return "구성이 엇갈립니다. 움직임을 지속 가능한 흐름으로 보기 전에 더 분명한 가격 확인이나 거래량 확대를 기다리세요.";
 }

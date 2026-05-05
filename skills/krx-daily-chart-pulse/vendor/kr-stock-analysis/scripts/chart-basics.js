@@ -582,6 +582,57 @@ function classifyChartFlow(metrics) {
   return "range-bound or base-building";
 }
 
+function displayState(value) {
+  const labels = {
+    "insufficient-data": "데이터 부족",
+    above: "상회",
+    below: "하회",
+    at: "일치",
+    heavy: "증가",
+    light: "감소",
+    normal: "보통",
+    overbought: "과열",
+    oversold: "침체",
+    neutral: "중립",
+    bullish: "강세",
+    bearish: "약세",
+    flat: "횡보",
+    "bullish-cross": "강세 전환",
+    "bearish-cross": "약세 전환",
+    "above-zero": "0선 상회",
+    "below-zero": "0선 하회",
+    "at-zero": "0선 부근",
+    expanding: "확대",
+    contracting: "축소",
+    stable: "안정",
+    rising: "상승",
+    falling: "하락",
+    "strong-trend": "강한 추세",
+    "building-trend": "추세 형성",
+    "weak-trend": "약한 추세",
+    "strong-bullish": "강한 정배열",
+    "strong-bearish": "강한 역배열",
+    "rebound-inside-downtrend": "하락 추세 안의 반등",
+    "pullback-inside-uptrend": "상승 추세 안의 눌림",
+    mixed: "혼조",
+    "inside-bands": "밴드 내부",
+    "above-upper-band": "상단 밴드 돌파",
+    "below-lower-band": "하단 밴드 이탈",
+    "upper-half": "밴드 상단부",
+    "lower-half": "밴드 하단부",
+    "mid-band": "밴드 중간권",
+    "above-cloud": "구름대 상회",
+    "below-cloud": "구름대 하회",
+    "inside-cloud": "구름대 내부",
+    "bullish continuation": "강세 지속",
+    "bearish continuation": "약세 지속",
+    "technical rebound inside broader downtrend": "큰 하락 추세 안의 기술적 반등",
+    "pullback inside broader uptrend": "큰 상승 추세 안의 눌림",
+    "range-bound or base-building": "박스권 또는 바닥 다지기",
+  };
+  return labels[value] || value || "-";
+}
+
 function createRgbaBuffer(width, height, background) {
   const buffer = Buffer.alloc(width * height * 4);
   for (let index = 0; index < width * height; index += 1) {
@@ -1289,8 +1340,8 @@ function buildChartPngs(data, bars, metrics, options) {
     drawLine(buffer, width, height, margin.left + plotWidth, macdTop, margin.left + plotWidth, adxTop + momentumAdxHeight, theme.border, 1);
 
     drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
-    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} MACD momentum`, theme.muted, 2);
-    drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `As of ${metrics.latest.date}`, theme.muted, 2, "right");
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} MACD 모멘텀`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
 
     let legendX = margin.left;
     const legendY = margin.top + 56;
@@ -1312,7 +1363,7 @@ function buildChartPngs(data, bars, metrics, options) {
     drawZeroGuide(buffer, macdTop, momentumLineHeight, macdRange);
     drawZeroGuide(buffer, histogramTop, momentumHistogramHeight, histogramRange);
     drawDateTicks(buffer, xForSlot, adxTop + momentumAdxHeight, adxTop + momentumAdxHeight + 14, totalSlotsForMomentum);
-    drawText(buffer, width, height, margin.left + plotWidth / 2, adxTop + momentumAdxHeight + 42, "Date", theme.muted, 2, "center");
+    drawText(buffer, width, height, margin.left + plotWidth / 2, adxTop + momentumAdxHeight + 42, "날짜", theme.muted, 2, "center");
 
     const macdPoints = mapSeriesToPoints(priceSeries.macd, xForSlot, 0, macdRange.min, macdRange.max, macdTop, momentumLineHeight, totalSlotsForMomentum);
     const signalPoints = mapSeriesToPoints(priceSeries.signal, xForSlot, 0, macdRange.min, macdRange.max, macdTop, momentumLineHeight, totalSlotsForMomentum);
@@ -1678,180 +1729,180 @@ function renderRead(metrics) {
 
   const trendLine = (() => {
     if (metrics.movingAverageStructure === "strong-bullish") {
-      return `- Trend structure: price is above MA5, MA20, MA60, and MA120, so the trend stack is fully bullish.`;
+      return `- 추세 구조: 주가가 MA5, MA20, MA60, MA120을 모두 상회해 이동평균 배열이 완전한 강세입니다.`;
     }
     if (metrics.movingAverageStructure === "strong-bearish") {
-      return `- Trend structure: price is below MA5, MA20, MA60, and MA120, so the trend stack remains firmly bearish.`;
+      return `- 추세 구조: 주가가 MA5, MA20, MA60, MA120을 모두 하회해 이동평균 배열이 뚜렷한 약세입니다.`;
     }
     if (metrics.movingAverageStructure === "rebound-inside-downtrend") {
-      return `- Trend structure: price has lifted above MA20 but still sits below MA60, so this is a rebound attempt inside a broader downtrend.`;
+      return `- 추세 구조: 주가가 MA20 위로 올라왔지만 아직 MA60 아래라 큰 하락 추세 안의 반등 시도로 봅니다.`;
     }
     if (metrics.movingAverageStructure === "pullback-inside-uptrend") {
-      return `- Trend structure: price is below MA20 but still above MA60, which keeps this closer to a pullback than a full trend break.`;
+      return `- 추세 구조: 주가가 MA20 아래지만 MA60 위에 있어 추세 이탈보다는 상승 추세 안의 눌림에 가깝습니다.`;
     }
     if (metrics.movingAverageStructure === "bullish") {
-      return `- Trend structure: price is above the medium- and long-term averages, so the broader trend still leans constructive.`;
+      return `- 추세 구조: 주가가 중장기 이동평균 위에 있어 큰 흐름은 여전히 우호적입니다.`;
     }
     if (metrics.movingAverageStructure === "bearish") {
-      return `- Trend structure: price is below MA20, MA60, and MA120, so rallies still need confirmation before they count as trend recovery.`;
+      return `- 추세 구조: 주가가 MA20, MA60, MA120 아래라 반등이 추세 회복으로 인정되려면 추가 확인이 필요합니다.`;
     }
-    return `- Trend structure: moving averages are mixed, so trend confirmation is still limited.`;
+    return `- 추세 구조: 이동평균 배열이 혼재되어 추세 확인은 아직 제한적입니다.`;
   })();
 
   const volatilityLine = (() => {
-    let bandText = "price is around the middle of the Bollinger range";
+    let bandText = "주가가 Bollinger 밴드 중간권에 있습니다";
     if (metrics.bollinger.state === "above-upper-band") {
-      bandText = "price is pushing above the upper Bollinger band";
+      bandText = "주가가 Bollinger 상단 밴드 위로 밀고 올라갑니다";
     } else if (metrics.bollinger.state === "below-lower-band") {
-      bandText = "price is pressing below the lower Bollinger band";
+      bandText = "주가가 Bollinger 하단 밴드 아래로 눌려 있습니다";
     } else if (metrics.bollinger.state === "upper-half") {
-      bandText = "price is in the upper half of the Bollinger range";
+      bandText = "주가가 Bollinger 밴드 상단부에 있습니다";
     } else if (metrics.bollinger.state === "lower-half") {
-      bandText = "price is in the lower half of the Bollinger range";
+      bandText = "주가가 Bollinger 밴드 하단부에 있습니다";
     }
 
-    let widthText = "band width is stable";
+    let widthText = "밴드 폭은 안정적입니다";
     if (metrics.bollinger.bandwidthRegime === "expanding") {
-      widthText = "band width is expanding, so volatility is widening";
+      widthText = "밴드 폭이 확대되어 변동성이 커지고 있습니다";
     } else if (metrics.bollinger.bandwidthRegime === "contracting") {
-      widthText = "band width is contracting, so volatility is compressing";
+      widthText = "밴드 폭이 축소되어 변동성이 압축되고 있습니다";
     }
 
-    return `- Volatility: ${bandText}, and ${widthText}.`;
+    return `- 변동성: ${bandText}. ${widthText}.`;
   })();
 
   const cloudLine = (() => {
     const cloudText =
       metrics.ichimoku.cloudPosition === "above-cloud"
-        ? "price is above the current cloud"
+        ? "주가가 현재 구름대 위에 있습니다"
         : metrics.ichimoku.cloudPosition === "below-cloud"
-          ? "price is below the current cloud"
+          ? "주가가 현재 구름대 아래에 있습니다"
           : metrics.ichimoku.cloudPosition === "inside-cloud"
-            ? "price is inside the current cloud"
-            : "current cloud positioning is unavailable";
+            ? "주가가 현재 구름대 안에 있습니다"
+            : "현재 구름대 위치를 확인하기 어렵습니다";
     const tkText =
       metrics.ichimoku.tkCross === "bullish"
-        ? "Tenkan is above Kijun"
+        ? "전환선이 기준선 위에 있습니다"
         : metrics.ichimoku.tkCross === "bearish"
-          ? "Tenkan is below Kijun"
+          ? "전환선이 기준선 아래에 있습니다"
           : metrics.ichimoku.tkCross === "flat"
-            ? "Tenkan and Kijun are flat"
-            : "Tenkan/Kijun positioning is unavailable";
+            ? "전환선과 기준선이 비슷합니다"
+            : "전환선/기준선 위치를 확인하기 어렵습니다";
     const futureText =
       metrics.ichimoku.futureCloudBias === "bullish"
-        ? "the projected cloud is bullish"
+        ? "선행 구름은 강세입니다"
         : metrics.ichimoku.futureCloudBias === "bearish"
-          ? "the projected cloud is bearish"
+          ? "선행 구름은 약세입니다"
           : metrics.ichimoku.futureCloudBias === "flat"
-            ? "the projected cloud is flat"
-            : "the projected cloud is unavailable";
-    return `- Cloud read: ${cloudText}, ${tkText.toLowerCase()}, and ${futureText}.`;
+            ? "선행 구름은 중립적입니다"
+            : "선행 구름을 확인하기 어렵습니다";
+    return `- 일목균형: ${cloudText}. ${tkText}. ${futureText}.`;
   })();
 
   const momentumLine = (() => {
     const rsiText =
       metrics.rsiState === "overbought"
-        ? `RSI14 is overbought at ${formatNumber(metrics.rsi14Value)}`
+        ? `RSI14는 ${formatNumber(metrics.rsi14Value)}로 과열권입니다`
         : metrics.rsiState === "oversold"
-          ? `RSI14 is oversold at ${formatNumber(metrics.rsi14Value)}`
+          ? `RSI14는 ${formatNumber(metrics.rsi14Value)}로 침체권입니다`
           : metrics.rsiState === "neutral"
-            ? `RSI14 is neutral at ${formatNumber(metrics.rsi14Value)}`
-            : "RSI14 is unavailable";
+            ? `RSI14는 ${formatNumber(metrics.rsi14Value)}로 중립권입니다`
+            : "RSI14를 확인하기 어렵습니다";
     const macdCrossText =
       metrics.macd.crossState === "bullish-cross"
-        ? "MACD has just crossed bullishly through signal"
+        ? "MACD가 Signal을 상향 돌파했습니다"
         : metrics.macd.crossState === "bearish-cross"
-          ? "MACD has just crossed bearishly through signal"
+          ? "MACD가 Signal을 하향 이탈했습니다"
           : metrics.macd.crossState === "bullish"
-            ? "MACD remains above signal"
+            ? "MACD가 Signal 위를 유지합니다"
             : metrics.macd.crossState === "bearish"
-              ? "MACD remains below signal"
-              : "MACD/signal relationship is limited";
+              ? "MACD가 Signal 아래에 머뭅니다"
+              : "MACD와 Signal 관계 확인이 제한적입니다";
     const zeroText =
       metrics.macd.zeroState === "above-zero"
-        ? "MACD is above zero"
+        ? "MACD는 0선 위입니다"
         : metrics.macd.zeroState === "below-zero"
-          ? "MACD is below zero"
+          ? "MACD는 0선 아래입니다"
           : metrics.macd.zeroState === "at-zero"
-            ? "MACD is sitting on zero"
+            ? "MACD는 0선 부근입니다"
             : "";
     const histogramText =
       metrics.macd.histogramState === "expanding"
-        ? "histogram momentum is expanding"
+        ? "히스토그램 모멘텀이 확대되고 있습니다"
         : metrics.macd.histogramState === "contracting"
-          ? "histogram momentum is contracting"
+          ? "히스토그램 모멘텀이 축소되고 있습니다"
           : metrics.macd.histogramState === "stable"
-            ? "histogram momentum is stable"
-            : "histogram trend is unavailable";
+            ? "히스토그램 모멘텀은 안정적입니다"
+            : "히스토그램 흐름을 확인하기 어렵습니다";
     const adxText =
       metrics.adx.strengthState === "strong-trend"
-        ? `ADX shows a strong trend, with ${
+        ? `ADX는 강한 추세를 가리키며 ${
             metrics.adx.directionState === "bullish"
-              ? "+DI in front"
+              ? "+DI가 우위입니다"
               : metrics.adx.directionState === "bearish"
-                ? "-DI in front"
-                : "directional lines overlapping"
+                ? "-DI가 우위입니다"
+                : "방향선은 겹쳐 있습니다"
           }`
         : metrics.adx.strengthState === "building-trend"
-          ? `ADX shows a trend that is building, with ${
+          ? `ADX는 추세 형성을 가리키며 ${
               metrics.adx.directionState === "bullish"
-                ? "+DI slightly ahead"
+                ? "+DI가 소폭 앞섭니다"
                 : metrics.adx.directionState === "bearish"
-                  ? "-DI slightly ahead"
-                  : "directional lines still close"
+                  ? "-DI가 소폭 앞섭니다"
+                  : "방향선은 아직 근접해 있습니다"
             }`
           : metrics.adx.strengthState === "weak-trend"
-            ? "ADX still reads as a weak-trend environment"
-            : "ADX trend-strength read is unavailable";
+            ? "ADX는 아직 약한 추세 환경을 가리킵니다"
+            : "ADX 추세 강도를 확인하기 어렵습니다";
     const adxSlopeText =
       metrics.adx.slopeState === "rising"
-        ? "trend strength is rising"
+        ? "추세 강도는 상승 중입니다"
         : metrics.adx.slopeState === "falling"
-          ? "trend strength is fading"
+          ? "추세 강도는 둔화 중입니다"
           : metrics.adx.slopeState === "flat"
-            ? "trend strength is flat"
-            : "trend-strength slope is unavailable";
+            ? "추세 강도는 횡보 중입니다"
+            : "추세 강도 기울기를 확인하기 어렵습니다";
     const volumeText =
       metrics.volumeRegime === "heavy"
-        ? "volume is running heavy versus the 20-day average"
+        ? "거래량은 20일 평균보다 많습니다"
         : metrics.volumeRegime === "light"
-          ? "volume is light versus the 20-day average"
+          ? "거래량은 20일 평균보다 적습니다"
           : metrics.volumeRegime === "normal"
-            ? "volume is close to the 20-day average"
-            : "volume comparison is unavailable";
-    const macdSummary = zeroText ? `${macdCrossText}, and ${zeroText}` : macdCrossText;
-    return `- Momentum and participation: ${rsiText}; ${macdSummary}; ${histogramText}; ${adxText}, and ${adxSlopeText}; ${volumeText}.`;
+            ? "거래량은 20일 평균에 가깝습니다"
+            : "거래량 비교를 확인하기 어렵습니다";
+    const macdSummary = zeroText ? `${macdCrossText}. ${zeroText}` : macdCrossText;
+    return `- 모멘텀과 참여도: ${rsiText}. ${macdSummary}. ${histogramText}. ${adxText}. ${adxSlopeText}. ${volumeText}.`;
   })();
 
   const practicalLine = (() => {
     const recoveryText = Number.isFinite(nearestRecovery)
-      ? `first recovery check is ${formatLevel(nearestRecovery)}`
-      : "near-term recovery level is unavailable";
+      ? `1차 회복 확인 가격은 ${formatLevel(nearestRecovery)}`
+      : "단기 회복 가격을 확인하기 어렵습니다";
     const nextRecoveryText = Number.isFinite(nextRecovery)
-      ? `then ${formatLevel(nextRecovery)}`
+      ? `다음은 ${formatLevel(nextRecovery)}`
       : null;
     const supportText = Number.isFinite(nearestSupport)
-      ? `nearest support watch is ${formatLevel(nearestSupport)}`
-      : "support watch is unavailable";
+      ? `가까운 지지 확인 가격은 ${formatLevel(nearestSupport)}`
+      : "지지 확인 가격을 확인하기 어렵습니다";
     const breakoutText = Number.isFinite(metrics.breakoutLevel)
-      ? `20-day breakout level sits at ${formatLevel(metrics.breakoutLevel)}`
-      : "20-day breakout level is unavailable";
+      ? `20일 돌파 기준은 ${formatLevel(metrics.breakoutLevel)}`
+      : "20일 돌파 기준을 확인하기 어렵습니다";
     const breakdownText = Number.isFinite(metrics.breakdownLevel)
-      ? `20-day breakdown level sits at ${formatLevel(metrics.breakdownLevel)}`
-      : "20-day breakdown level is unavailable";
+      ? `20일 이탈 기준은 ${formatLevel(metrics.breakdownLevel)}`
+      : "20일 이탈 기준을 확인하기 어렵습니다";
 
-    let flowText = "chart-only flow is range-bound or base-building";
+    let flowText = "차트 기준 흐름은 박스권 또는 바닥 다지기입니다";
     if (metrics.chartFlow === "bullish continuation") {
-      flowText = "chart-only flow still reads as bullish continuation";
+      flowText = "차트 기준 흐름은 강세 지속입니다";
     } else if (metrics.chartFlow === "bearish continuation") {
-      flowText = "chart-only flow still reads as bearish continuation";
+      flowText = "차트 기준 흐름은 약세 지속입니다";
     } else if (metrics.chartFlow === "technical rebound inside broader downtrend") {
-      flowText = "chart-only flow looks like a technical rebound inside a broader downtrend";
+      flowText = "차트 기준 흐름은 큰 하락 추세 안의 기술적 반등입니다";
     } else if (metrics.chartFlow === "pullback inside broader uptrend") {
-      flowText = "chart-only flow looks like a pullback inside a broader uptrend";
+      flowText = "차트 기준 흐름은 큰 상승 추세 안의 눌림입니다";
     }
 
-    return `- Practical checklist: ${supportText}; ${recoveryText}${nextRecoveryText ? `, ${nextRecoveryText}` : ""}; ${breakoutText}; ${breakdownText}; ${flowText}.`;
+    return `- 실전 체크리스트: ${supportText}; ${recoveryText}${nextRecoveryText ? `, ${nextRecoveryText}` : ""}; ${breakoutText}; ${breakdownText}; ${flowText}.`;
   })();
 
   console.log(trendLine);
@@ -1885,73 +1936,73 @@ function main() {
   const metrics = buildTechnicalMetrics(bars);
   const pngInfo = args.pngOut ? buildChartPngs(data, bars, metrics, args) : null;
 
-  console.log(`# Advanced Chart Analysis: ${data.ticker || "Unknown"}`);
+  console.log(`# 고급 차트 분석: ${data.ticker || "Unknown"}`);
   console.log("");
   if (data.name) {
-    console.log(`- Name: ${data.name}`);
+    console.log(`- 종목명: ${data.name}`);
   }
-  console.log(`- Latest date: ${metrics.latest.date}`);
-  console.log(`- Latest close: ${formatNumber(metrics.latestClose)}`);
-  console.log(`- Moving-average structure: ${metrics.movingAverageStructure}`);
-  console.log(`- Bollinger read: ${metrics.bollinger.state}`);
-  console.log(`- Ichimoku read: ${metrics.ichimoku.cloudPosition}`);
-  console.log(`- RSI state: ${metrics.rsiState}`);
-  console.log(`- MACD state: ${metrics.macd.crossState} / ${metrics.macd.zeroState}`);
-  console.log(`- ADX state: ${metrics.adx.strengthState} / ${metrics.adx.directionState} / ${metrics.adx.slopeState}`);
-  console.log(`- Volume regime: ${metrics.volumeRegime}`);
-  console.log(`- Chart-only flow: ${metrics.chartFlow}`);
+  console.log(`- 최근 일자: ${metrics.latest.date}`);
+  console.log(`- 최근 종가: ${formatNumber(metrics.latestClose)}`);
+  console.log(`- 이동평균 구조: ${displayState(metrics.movingAverageStructure)}`);
+  console.log(`- Bollinger 해석: ${displayState(metrics.bollinger.state)}`);
+  console.log(`- Ichimoku 해석: ${displayState(metrics.ichimoku.cloudPosition)}`);
+  console.log(`- RSI 상태: ${displayState(metrics.rsiState)}`);
+  console.log(`- MACD 상태: ${displayState(metrics.macd.crossState)} / ${displayState(metrics.macd.zeroState)}`);
+  console.log(`- ADX 상태: ${displayState(metrics.adx.strengthState)} / ${displayState(metrics.adx.directionState)} / ${displayState(metrics.adx.slopeState)}`);
+  console.log(`- 거래량 상태: ${displayState(metrics.volumeRegime)}`);
+  console.log(`- 차트 기준 흐름: ${displayState(metrics.chartFlow)}`);
   console.log("");
 
   if (pngInfo) {
-    console.log("## Chart Images");
+    console.log("## 차트 이미지");
     console.log("");
-    console.log(`![${data.name || data.ticker || "Chart"} main trend chart](${pngInfo.imagePaths.main})`);
+    console.log(`![${data.name || data.ticker || "차트"} 주가 추세 차트](${pngInfo.imagePaths.main})`);
     console.log("");
-    console.log(`![${data.name || data.ticker || "Chart"} overlay chart](${pngInfo.imagePaths.overlay})`);
+    console.log(`![${data.name || data.ticker || "차트"} 보조지표 차트](${pngInfo.imagePaths.overlay})`);
     console.log("");
-    console.log(`![${data.name || data.ticker || "Chart"} momentum chart](${pngInfo.imagePaths.momentum})`);
+    console.log(`![${data.name || data.ticker || "차트"} 모멘텀 차트](${pngInfo.imagePaths.momentum})`);
     console.log("");
     console.log(
-      `The main chart uses OHLC candlesticks with upper and lower wicks, plus MA5, MA20, MA60, MA120, and volume. The overlay chart separates Bollinger Bands, Ichimoku cloud lines, and RSI14, and reserves ${pngInfo.leadBarsUsed} forward slots for the projected cloud. The momentum chart focuses on MACD, signal, histogram, and ADX/DMI so crossovers, momentum acceleration, and trend strength are easier to see.`,
+      `주가 추세 차트는 위아래 꼬리가 있는 OHLC 캔들과 MA5, MA20, MA60, MA120, 거래량을 함께 보여줍니다. 보조지표 차트는 Bollinger Bands, Ichimoku 구름대, RSI14를 분리해 보여주며 선행 구름 표시를 위해 ${pngInfo.leadBarsUsed}개 미래 구간을 확보합니다. 모멘텀 차트는 MACD, Signal, Histogram, ADX/DMI에 집중해 교차, 모멘텀 가속, 추세 강도를 보기 쉽게 합니다.`,
     );
     console.log("");
   }
 
-  console.log("## Indicators");
+  console.log("## 지표");
   console.log("");
-  console.log("| Metric | Value |");
+  console.log("| 항목 | 값 |");
   console.log("| --- | --- |");
   console.log(`| MA 5 | ${formatNumber(metrics.ma5Value)} |`);
   console.log(`| MA 20 | ${formatNumber(metrics.ma20Value)} |`);
   console.log(`| MA 60 | ${formatNumber(metrics.ma60Value)} |`);
   console.log(`| MA 120 | ${formatNumber(metrics.ma120Value)} |`);
-  console.log(`| Bollinger Upper | ${formatNumber(metrics.bollinger.upper)} |`);
-  console.log(`| Bollinger Middle | ${formatNumber(metrics.bollinger.middle)} |`);
-  console.log(`| Bollinger Lower | ${formatNumber(metrics.bollinger.lower)} |`);
-  console.log(`| Bollinger Width | ${formatPercentRatio(metrics.bollinger.bandwidth, 2)} |`);
-  console.log(`| Tenkan | ${formatNumber(metrics.ichimoku.tenkan)} |`);
-  console.log(`| Kijun | ${formatNumber(metrics.ichimoku.kijun)} |`);
-  console.log(`| Current Cloud A | ${formatNumber(metrics.ichimoku.currentCloudA)} |`);
-  console.log(`| Current Cloud B | ${formatNumber(metrics.ichimoku.currentCloudB)} |`);
-  console.log(`| Future Cloud A | ${formatNumber(metrics.ichimoku.futureCloudA)} |`);
-  console.log(`| Future Cloud B | ${formatNumber(metrics.ichimoku.futureCloudB)} |`);
+  console.log(`| Bollinger 상단 | ${formatNumber(metrics.bollinger.upper)} |`);
+  console.log(`| Bollinger 중심 | ${formatNumber(metrics.bollinger.middle)} |`);
+  console.log(`| Bollinger 하단 | ${formatNumber(metrics.bollinger.lower)} |`);
+  console.log(`| Bollinger 폭 | ${formatPercentRatio(metrics.bollinger.bandwidth, 2)} |`);
+  console.log(`| 전환선 | ${formatNumber(metrics.ichimoku.tenkan)} |`);
+  console.log(`| 기준선 | ${formatNumber(metrics.ichimoku.kijun)} |`);
+  console.log(`| 현재 구름 A | ${formatNumber(metrics.ichimoku.currentCloudA)} |`);
+  console.log(`| 현재 구름 B | ${formatNumber(metrics.ichimoku.currentCloudB)} |`);
+  console.log(`| 선행 구름 A | ${formatNumber(metrics.ichimoku.futureCloudA)} |`);
+  console.log(`| 선행 구름 B | ${formatNumber(metrics.ichimoku.futureCloudB)} |`);
   console.log(`| RSI 14 | ${formatNumber(metrics.rsi14Value)} |`);
   console.log(`| MACD | ${formatNumber(metrics.macd.macdValue)} |`);
-  console.log(`| Signal | ${formatNumber(metrics.macd.signalValue)} |`);
-  console.log(`| Histogram | ${formatNumber(metrics.macd.histogramValue)} |`);
-  console.log(`| MACD State | ${metrics.macd.crossState} / ${metrics.macd.zeroState} |`);
-  console.log(`| Histogram State | ${metrics.macd.histogramState} |`);
+  console.log(`| MACD Signal | ${formatNumber(metrics.macd.signalValue)} |`);
+  console.log(`| MACD Histogram | ${formatNumber(metrics.macd.histogramValue)} |`);
+  console.log(`| MACD 상태 | ${displayState(metrics.macd.crossState)} / ${displayState(metrics.macd.zeroState)} |`);
+  console.log(`| Histogram 상태 | ${displayState(metrics.macd.histogramState)} |`);
   console.log(`| ADX 14 | ${formatNumber(metrics.adx.adxValue)} |`);
   console.log(`| +DI | ${formatNumber(metrics.adx.plusDiValue)} |`);
   console.log(`| -DI | ${formatNumber(metrics.adx.minusDiValue)} |`);
-  console.log(`| ADX State | ${metrics.adx.strengthState} / ${metrics.adx.directionState} / ${metrics.adx.slopeState} |`);
-  console.log(`| Avg Volume 20 | ${formatInteger(metrics.avgVolume20)} |`);
-  console.log(`| Volume vs Avg 20 | ${formatPercentRatio(metrics.volumeRatio, 1)} |`);
-  console.log(`| 20D Breakout Level | ${formatNumber(metrics.breakoutLevel)} |`);
-  console.log(`| 20D Breakdown Level | ${formatNumber(metrics.breakdownLevel)} |`);
+  console.log(`| ADX 상태 | ${displayState(metrics.adx.strengthState)} / ${displayState(metrics.adx.directionState)} / ${displayState(metrics.adx.slopeState)} |`);
+  console.log(`| 20일 평균 거래량 | ${formatInteger(metrics.avgVolume20)} |`);
+  console.log(`| 20일 평균 대비 거래량 | ${formatPercentRatio(metrics.volumeRatio, 1)} |`);
+  console.log(`| 20일 돌파 기준 | ${formatNumber(metrics.breakoutLevel)} |`);
+  console.log(`| 20일 이탈 기준 | ${formatNumber(metrics.breakdownLevel)} |`);
   console.log("");
 
-  console.log("## Read");
+  console.log("## 해석");
   console.log("");
   renderRead(metrics);
 }
