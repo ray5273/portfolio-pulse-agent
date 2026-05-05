@@ -10,8 +10,10 @@ SUMMARY="$OUT_DIR.summary.json"
 HERMES_REPORT="$OUT_DIR.hermes-report.md"
 HERMES_BATCHES="$OUT_DIR.hermes-send-batches.json"
 STDERR_LOG="$OUT_DIR.stderr.log"
+HERMES_TEST_HOME="$ROOT_DIR/.tmp/hermes-home-smoke"
+HERMES_INSTALL_HOME="$ROOT_DIR/.tmp/hermes-install-smoke"
 
-rm -rf "$OUT_DIR"
+rm -rf "$OUT_DIR" "$HERMES_TEST_HOME" "$HERMES_INSTALL_HOME"
 mkdir -p "$(dirname "$OUT_DIR")"
 
 node "$CLI" \
@@ -165,6 +167,81 @@ fi
 if grep -R -Ei '(bot[0-9]{6,}:[A-Za-z0-9_-]{20,}|TELEGRAM_(BOT_)?TOKEN=|chat_id["'\'']?[[:space:]]*[:=])' "$OUT_DIR" "$SUMMARY" "$HERMES_REPORT" "$HERMES_BATCHES" "$ROOT_DIR/examples" "$ROOT_DIR/README.md" >/tmp/krx-pulse-secret-scan.out; then
   echo "Potential Telegram secret material found:" >&2
   cat /tmp/krx-pulse-secret-scan.out >&2
+  exit 1
+fi
+
+mkdir -p \
+  "$HERMES_TEST_HOME/skills" \
+  "$HERMES_TEST_HOME/scripts" \
+  "$HERMES_TEST_HOME/config/krx-daily-chart-pulse" \
+  "$HERMES_TEST_HOME/.tmp"
+cp -R "$ROOT_DIR/skills/krx-daily-chart-pulse" "$HERMES_TEST_HOME/skills/krx-daily-chart-pulse"
+cp "$ROOT_DIR/scripts/hermes-send-krx-batches.py" "$HERMES_TEST_HOME/scripts/hermes-send-krx-batches.py"
+cp "$WATCHLIST" "$HERMES_TEST_HOME/config/krx-daily-chart-pulse/watchlist.json"
+cp -R "$ROOT_DIR/.tmp/krx-chart-font-venv" "$HERMES_TEST_HOME/.tmp/krx-chart-font-venv"
+
+SENDER_BATCHES="$HERMES_TEST_HOME/sender-batches.json"
+HERMES_HOME="$HERMES_TEST_HOME" \
+KRX_WATCHLIST="watchlist.json" \
+KRX_DRY_RUN=1 \
+KRX_DATE="$RUN_DATE" \
+python3 - "$HERMES_TEST_HOME/scripts/hermes-send-krx-batches.py" > "$SENDER_BATCHES" <<'PY'
+import json
+import runpy
+import sys
+
+module = runpy.run_path(sys.argv[1])
+print(json.dumps(module["build_batches"](), ensure_ascii=False, indent=2))
+PY
+
+node --input-type=module -e '
+  import { readFileSync } from "node:fs";
+  import path from "node:path";
+
+  const [batchesPath, hermesHome, runDate] = process.argv.slice(1);
+  const batches = JSON.parse(readFileSync(batchesPath, "utf8"));
+  if (!Array.isArray(batches) || batches.length !== 2) {
+    throw new Error(`Expected 2 sender batches, found ${Array.isArray(batches) ? batches.length : "non-array"}`);
+  }
+  const artifactRoot = path.join(hermesHome, "artifacts/krx-daily-chart-pulse", runDate);
+  for (const batch of batches) {
+    for (const mediaPath of batch.media) {
+      if (!mediaPath.startsWith(`${artifactRoot}${path.sep}`)) {
+        throw new Error(`Sender media path is outside Hermes artifacts: ${mediaPath}`);
+      }
+    }
+  }
+' "$SENDER_BATCHES" "$HERMES_TEST_HOME" "$RUN_DATE"
+
+HERMES_HOME="$HERMES_INSTALL_HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" bash "$ROOT_DIR/scripts/install-hermes-skill.sh" >/tmp/krx-pulse-install.out
+if [[ ! -x "$HERMES_INSTALL_HOME/scripts/hermes-send-krx-batches.py" ]]; then
+  echo "Installed Hermes sender script is missing or not executable" >&2
+  exit 1
+fi
+if [[ ! -d "$HERMES_INSTALL_HOME/skills/krx-daily-chart-pulse" ]]; then
+  echo "Installed Hermes skill is missing" >&2
+  exit 1
+fi
+if [[ -e "$ROOT_DIR/examples/watchlist.local.json" ]]; then
+  if ! cmp -s "$ROOT_DIR/examples/watchlist.local.json" "$HERMES_INSTALL_HOME/config/krx-daily-chart-pulse/watchlist.json"; then
+    echo "Installer did not seed config watchlist from examples/watchlist.local.json" >&2
+    exit 1
+  fi
+else
+  if [[ -e "$HERMES_INSTALL_HOME/config/krx-daily-chart-pulse/watchlist.json" ]]; then
+    echo "Installer created a real config watchlist without a local seed" >&2
+    exit 1
+  fi
+fi
+if [[ ! -s "$HERMES_INSTALL_HOME/config/krx-daily-chart-pulse/watchlist.example.json" ]]; then
+  echo "Installer did not copy watchlist.example.json template" >&2
+  exit 1
+fi
+
+printf '[{"ticker":"000000","name":"Do Not Overwrite","market":"KOSPI"}]\n' > "$HERMES_INSTALL_HOME/config/krx-daily-chart-pulse/watchlist.json"
+HERMES_HOME="$HERMES_INSTALL_HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" bash "$ROOT_DIR/scripts/install-hermes-skill.sh" >/tmp/krx-pulse-install-rerun.out
+if ! grep -Fq "Do Not Overwrite" "$HERMES_INSTALL_HOME/config/krx-daily-chart-pulse/watchlist.json"; then
+  echo "Installer overwrote an existing config watchlist" >&2
   exit 1
 fi
 

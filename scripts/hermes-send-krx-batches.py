@@ -6,14 +6,28 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path("/Users/sanghyeok/workspace/kr-portfolio-pulse-agent")
-LOCAL_WATCHLIST = REPO_ROOT / "examples/watchlist.local.json"
-DEFAULT_WATCHLIST = REPO_ROOT / "examples/watchlist.example.json"
-CLI = REPO_ROOT / "skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js"
-
-
 def hermes_home() -> Path:
     return Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))).expanduser()
+
+
+def config_dir() -> Path:
+    return hermes_home() / "config/krx-daily-chart-pulse"
+
+
+def resolve_watchlist() -> Path:
+    watchlist_override = os.environ.get("KRX_WATCHLIST", "").strip()
+    if watchlist_override:
+        watchlist = Path(watchlist_override).expanduser()
+        return watchlist if watchlist.is_absolute() else config_dir() / watchlist
+    return config_dir() / "watchlist.json"
+
+
+def cli_path() -> Path:
+    return hermes_home() / "skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js"
+
+
+def output_dir() -> Path:
+    return hermes_home() / "artifacts/krx-daily-chart-pulse"
 
 
 def load_send_message_tool():
@@ -25,23 +39,25 @@ def load_send_message_tool():
 
 
 def build_batches() -> list[dict]:
-    watchlist_override = os.environ.get("KRX_WATCHLIST", "").strip()
-    if watchlist_override:
-        watchlist = Path(watchlist_override).expanduser()
-    else:
-        watchlist = LOCAL_WATCHLIST if LOCAL_WATCHLIST.exists() else DEFAULT_WATCHLIST
-    if not watchlist.is_absolute():
-        watchlist = REPO_ROOT / watchlist
+    watchlist = resolve_watchlist()
+    command = [
+        "node",
+        str(cli_path()),
+        "--watchlist",
+        str(watchlist),
+        "--output-dir",
+        str(output_dir()),
+        "--emit-hermes-send-batches",
+    ]
+    if os.environ.get("KRX_DRY_RUN", "").strip().lower() in {"1", "true", "yes"}:
+        command.append("--dry-run")
+    run_date = os.environ.get("KRX_DATE", os.environ.get("KRX_RUN_DATE", "")).strip()
+    if run_date:
+        command.extend(["--date", run_date])
 
     result = subprocess.run(
-        [
-            "node",
-            str(CLI),
-            "--watchlist",
-            str(watchlist),
-            "--emit-hermes-send-batches",
-        ],
-        cwd=str(REPO_ROOT),
+        command,
+        cwd=str(hermes_home()),
         capture_output=True,
         text=True,
     )

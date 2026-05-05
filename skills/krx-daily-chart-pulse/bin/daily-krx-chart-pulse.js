@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeTickerArtifacts } from "../lib/artifacts.js";
@@ -9,6 +11,8 @@ import { filterWatchlist, loadWatchlist } from "../lib/watchlist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
+const hermesHome = path.resolve(process.env.HERMES_HOME || path.join(os.homedir(), ".hermes"));
+const hermesConfigDir = path.join(hermesHome, "config/krx-daily-chart-pulse");
 
 function todayLocal() {
   const now = new Date();
@@ -23,7 +27,7 @@ function usage() {
     "Usage: daily-krx-chart-pulse [options]",
     "",
     "Options:",
-    "  --watchlist <path>   Watchlist JSON path",
+    "  --watchlist <path>   Watchlist JSON path; defaults to KRX_WATCHLIST or Hermes config",
     "  --output-dir <path>  Base output directory",
     "  --dry-run            Use deterministic mock data",
     "  --date <YYYY-MM-DD>  Run date",
@@ -36,9 +40,30 @@ function usage() {
   ].join("\n");
 }
 
+function expandHome(value) {
+  if (value === "~") return os.homedir();
+  if (value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
+  return value;
+}
+
+function resolvePath(value, baseDir = process.cwd()) {
+  const expanded = expandHome(String(value));
+  return path.resolve(path.isAbsolute(expanded) ? expanded : path.join(baseDir, expanded));
+}
+
+function resolveDefaultWatchlist() {
+  const envWatchlist = String(process.env.KRX_WATCHLIST || "").trim();
+  if (envWatchlist) return resolvePath(envWatchlist, hermesConfigDir);
+
+  const hermesWatchlist = path.join(hermesConfigDir, "watchlist.json");
+  if (existsSync(hermesWatchlist)) return hermesWatchlist;
+
+  return path.join(repoRoot, "examples/watchlist.example.json");
+}
+
 function parseArgs(argv) {
   const args = {
-    watchlist: path.join(repoRoot, "examples/watchlist.example.json"),
+    watchlist: undefined,
     outputDir: path.join(repoRoot, ".tmp/portfolio-pulse"),
     dryRun: false,
     date: todayLocal(),
@@ -63,7 +88,7 @@ function parseArgs(argv) {
     } else if (arg === "--emit-hermes-send-batches") {
       args.emitHermesSendBatches = true;
     } else if (arg === "--watchlist") {
-      args.watchlist = argv[++i];
+      args.watchlist = resolvePath(argv[++i]);
     } else if (arg === "--output-dir") {
       args.outputDir = argv[++i];
     } else if (arg === "--date") {
@@ -83,7 +108,7 @@ function parseArgs(argv) {
     throw new Error("--emit-payload, --emit-hermes-report, and --emit-hermes-send-batches cannot be used together");
   }
 
-  args.watchlist = path.resolve(args.watchlist);
+  args.watchlist ||= resolveDefaultWatchlist();
   args.outputDir = path.resolve(args.outputDir);
   return args;
 }

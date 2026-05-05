@@ -40,7 +40,7 @@ Each ticker directory contains:
 
 ```text
 daily-krx-chart-pulse
-  --watchlist <path>      Watchlist JSON file. Defaults to examples/watchlist.example.json.
+  --watchlist <path>      Watchlist JSON file.
   --output-dir <path>     Base output directory. Defaults to .tmp/portfolio-pulse.
   --dry-run               Use deterministic local sample data and skip network calls.
   --date <YYYY-MM-DD>     Run date. Defaults to today.
@@ -52,6 +52,8 @@ daily-krx-chart-pulse
 ```
 
 Use `--emit-payload` for machine-readable automation. Use `--emit-hermes-report` for a local Markdown report with `MEDIA:` lines. Use `--emit-hermes-send-batches` for Hermes Telegram cron delivery that sends each ticker sequentially from one cron job.
+
+When `--watchlist` is omitted, the CLI resolves the watchlist in this order: `KRX_WATCHLIST`, `$HERMES_HOME/config/krx-daily-chart-pulse/watchlist.json`, then `examples/watchlist.example.json`. The repo example fallback is for development and tests; Hermes cron should use the config watchlist.
 
 ## Watchlist Format
 
@@ -78,18 +80,21 @@ The install script copies both the skill and the cron send script into Hermes:
 
 - skill: `~/.hermes/skills/krx-daily-chart-pulse`
 - cron script: `~/.hermes/scripts/hermes-send-krx-batches.py`
+- watchlist config: `~/.hermes/config/krx-daily-chart-pulse/watchlist.json`
 
-For a local-only portfolio list, create `examples/watchlist.local.json`. The cron send script uses that file when it exists, and falls back to `examples/watchlist.example.json` otherwise. Keep `examples/watchlist.local.json` in `.git/info/exclude` if the list should stay off commits.
+The install script creates `~/.hermes/config/krx-daily-chart-pulse/`. If `watchlist.json` does not exist and `examples/watchlist.local.json` exists, it copies that local file once as the initial config watchlist. Existing config watchlists are never overwritten. If there is no local seed, the installer copies only `watchlist.example.json` as a template and does not create a real portfolio watchlist.
+
+The cron send script uses `$HERMES_HOME/config/krx-daily-chart-pulse/watchlist.json` by default and writes artifacts under `$HERMES_HOME/artifacts/krx-daily-chart-pulse`. `KRX_WATCHLIST` can override the watchlist; relative override paths are resolved from `$HERMES_HOME/config/krx-daily-chart-pulse/`.
 
 Example cron:
 
 ```bash
-hermes cron create "10 16 * * 1-5" \
+hermes cron create "0 17 * * 1-5" \
   --name krx-daily-chart-pulse \
   --deliver local \
   --script hermes-send-krx-batches.py \
   --skill krx-daily-chart-pulse \
-  --workdir /Users/sanghyeok/workspace/kr-portfolio-pulse-agent \
+  --workdir "$HERMES_HOME" \
   "Read the Script Output JSON. Return its summary field exactly as the final local response. If failures is non-empty, return the summary followed by the first failure ticker and error."
 ```
 
