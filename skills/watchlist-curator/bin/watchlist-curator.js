@@ -15,17 +15,19 @@ const KRX_MARKETS = new Set(["KOSPI", "KOSDAQ", "KONEX"]);
 const US_MARKETS = new Set(["NASDAQ", "NYSE", "AMEX"]);
 
 function usage() {
-  return `watchlist-curator <resolve|propose|apply|doctor> [options]
+  return `watchlist-curator <lookup|resolve|propose|apply|doctor> [options]
 
 Commands:
+  lookup                        Find ticker/market candidates without writing watchlists.
   resolve                       Parse input and return proposed watchlist additions as JSON.
   propose                       Print a Korean confirmation message for a user to review.
   apply                         Merge confirmed entries into KRX/US watchlist JSON files.
   doctor                        Check Hermes skill/watchlist installation without modifying files.
 
 Options:
-  --input <text>                Loose user request text. If omitted, resolve reads stdin.
+  --input <text>                Loose user request text. If omitted, lookup/resolve reads stdin.
   --entries <json>              Confirmed entries JSON for apply. If omitted, apply reads stdin.
+  --entries-base64 <base64>     UTF-8 JSON entries encoded as base64 for shell-safe apply.
   --from-resolve <path>         Apply from a full resolve JSON file.
   --json                        With propose, also print the structured resolve JSON.
   --market <auto|krx|us>        Candidate market scope. Default: auto.
@@ -73,6 +75,8 @@ function parseArgs(argv) {
       options.input = requireValue(args, ++index, arg);
     } else if (arg === "--entries") {
       options.entries = requireValue(args, ++index, arg);
+    } else if (arg === "--entries-base64") {
+      options.entriesBase64 = requireValue(args, ++index, arg);
     } else if (arg === "--from-resolve") {
       options.fromResolve = requireValue(args, ++index, arg);
     } else if (arg === "--market") {
@@ -88,7 +92,7 @@ function parseArgs(argv) {
     }
   }
 
-  if (!["resolve", "propose", "apply", "doctor", undefined].includes(command)) {
+  if (!["lookup", "resolve", "propose", "apply", "doctor", undefined].includes(command)) {
     throw new Error(`Unknown command ${command}`);
   }
   if (!["auto", "krx", "us"].includes(options.market)) {
@@ -228,7 +232,12 @@ function parseRequestedItems(input) {
   text = text
     .replace(/(?:워치리스트|watchlist|관심종목|포트폴리오|portfolio)/gi, " ")
     .replace(/(?:추가해줘|추가해|추가|넣어줘|넣어|등록해줘|등록|add|please|pls|to my|to the)/gi, " ")
-    .replace(/(?:주식|종목|stock|stocks|ticker|tickers)/gi, " ")
+    .replace(/(?:찾아줘|찾아|알려줘|알려|확인해줘|확인|조회해줘|조회|검색해줘|검색|find|lookup|search)/gi, " ")
+    .replace(/(?:주식\s*시장|증시|거래소(?:야|인가요|인가|이야)?|시장(?:이야|인가요|인가|야)?|exchange|exchanges|market|markets)/gi, " ")
+    .replace(/(?:티커|심볼|종목코드|주식|종목|stock|stocks|ticker|tickers|symbol|symbols)/gi, " ")
+    .replace(/(^|[\s,，、/+])(?:어느|어떤|어디|뭐야|뭐|인가요|인가|이야|야|상장)(?=$|[\s,，、/+])/g, "$1")
+    .replace(/\b(?:listed|what|which|where|is|on)\b/gi, " ")
+    .replace(/(^|[\s,，、/+])(?:한국|국내|코스피|코스닥|코넥스|krx|kospi|kosdaq|konex)(?=$|[\s,，、/+])/gi, "$1")
     .replace(/[+]/g, ",")
     .replace(/\b(?:and|with)\b/gi, ",")
     .replace(/(?:이랑|랑|하고|와|과|및)/g, ",")
@@ -572,14 +581,84 @@ async function buildResolveOutput(options) {
       : "Do not write watchlists. Ask the user to choose from candidates or provide a ticker."
   };
   output.applyEntriesJson = okToApply ? JSON.stringify(output.additions) : "";
-  output.applyCommand = okToApply ? buildApplyCommand(output, options) : "";
+  output.applyArgsJson = okToApply ? buildApplyArgs(output, options) : [];
+  output.applyCommand = okToApply ? buildApplyCommand(output.applyArgsJson) : "";
   output.humanSummary = buildHumanSummary(output);
   output.confirmationPrompt = buildConfirmationPrompt(output);
   return output;
 }
 
+async function buildLookupOutput(options) {
+  const input = options.input ?? await readStdin();
+  const requested = parseRequestedItems(input);
+  const [symbols, krxWatchlist, usWatchlist] = await Promise.all([
+    loadSymbols(options.sourceFiles),
+    loadWatchlist(options.watchlistKrx),
+    loadWatchlist(options.watchlistUs)
+  ]);
+  const existing = splitExisting({ krx: krxWatchlist, us: usWatchlist });
+  const matches = [];
+  const ambiguous = [];
+  const unresolved = [];
+
+  for (const item of requested) {
+    const result = await resolveOne(item, symbols, options);
+    if (result.status === "resolved") {
+      const candidate = cleanLookupCandidate(result.candidate, existing);
+      validateCandidate(candidate.entry);
+      matches.push({
+        requested: item.query,
+        ...candidate
+      });
+    } else if (result.status === "ambiguous") {
+      ambiguous.push({
+        requested: result.requested,
+        candidates: result.candidates.map((candidate) => cleanLookupCandidate(candidate, existing))
+      });
+    } else {
+      unresolved.push({
+        requested: result.requested,
+        reason: "No deterministic ticker/market candidate was found."
+      });
+    }
+  }
+
+  const output = {
+    okToApply: false,
+    mode: "lookup",
+    writesWatchlist: false,
+    input,
+    requested: requested.map((item) => item.query),
+    matches,
+    duplicates: matches.filter((item) => item.duplicate),
+    ambiguous,
+    unresolved,
+    watchlists: {
+      krx: options.watchlistKrx,
+      us: options.watchlistUs
+    },
+    nextStep: "Lookup is read-only. To add a candidate, run propose and wait for explicit user confirmation before apply."
+  };
+  output.humanSummary = buildLookupHumanSummary(output);
+  return output;
+}
+
+function cleanLookupCandidate(candidate, existing) {
+  const entry = cleanCandidate(candidate);
+  return {
+    entry,
+    source: candidate.source || "fixture",
+    duplicate: isDuplicate(entry, existing)
+  };
+}
+
 async function resolveCommand(options) {
   printJson(await buildResolveOutput(options));
+}
+
+async function lookupCommand(options) {
+  const output = await buildLookupOutput(options);
+  process.stdout.write(formatLookup(output));
 }
 
 async function proposeCommand(options) {
@@ -591,19 +670,26 @@ async function proposeCommand(options) {
   }
 }
 
-function buildApplyCommand(output, options) {
-  const parts = [
+function buildApplyArgs(output, options) {
+  return [
     "node",
-    shellQuote(CLI_PATH),
+    CLI_PATH,
     "apply",
     "--watchlist-krx",
-    shellQuote(options.watchlistKrx),
+    options.watchlistKrx,
     "--watchlist-us",
-    shellQuote(options.watchlistUs),
-    "--entries",
-    shellQuote(JSON.stringify(output.additions))
+    options.watchlistUs,
+    "--entries-base64",
+    entriesToBase64(output.additions)
   ];
-  return parts.join(" ");
+}
+
+function buildApplyCommand(args) {
+  return args.map(shellQuote).join(" ");
+}
+
+function entriesToBase64(entries) {
+  return Buffer.from(JSON.stringify(entries), "utf8").toString("base64");
 }
 
 function shellQuote(value) {
@@ -654,8 +740,45 @@ function buildConfirmationPrompt(output) {
 
 function formatProposal(output) {
   const lines = ["humanSummary:", output.humanSummary, "", "confirmationPrompt:", output.confirmationPrompt];
+  if (output.applyArgsJson.length > 0) {
+    lines.push("", "applyArgsJson:", JSON.stringify(output.applyArgsJson, null, 2));
+  }
   if (output.applyCommand) lines.push("", "applyCommand:", output.applyCommand);
   return `${lines.join("\n")}\n`;
+}
+
+function buildLookupHumanSummary(output) {
+  const lines = [];
+  if (output.matches.length > 0) {
+    lines.push("조회 결과:");
+    for (const item of output.matches) {
+      const duplicateText = item.duplicate ? ", watchlist=already-present" : ", watchlist=not-present";
+      lines.push(`- ${item.requested}: ${formatEntry(item.entry)}, source=${item.source}${duplicateText}`);
+    }
+  } else {
+    lines.push("조회 결과가 없습니다.");
+  }
+  if (output.ambiguous.length > 0) {
+    lines.push("여러 후보가 있어 하나로 고르지 않았습니다:");
+    for (const item of output.ambiguous) {
+      lines.push(`- ${item.requested}: ${item.candidates.map(formatLookupCandidate).join(" / ")}`);
+    }
+  }
+  if (output.unresolved.length > 0) {
+    lines.push("확인되지 않은 항목:");
+    for (const item of output.unresolved) lines.push(`- ${item.requested}: 후보 없음`);
+  }
+  lines.push("쓰기 금지: lookup은 watchlist를 수정하지 않습니다. 추가하려면 propose로 확인 절차를 시작하세요.");
+  return lines.join("\n");
+}
+
+function formatLookup(output) {
+  return `humanSummary:\n${output.humanSummary}\n\n구조화 JSON:\n${JSON.stringify(output, null, 2)}\n`;
+}
+
+function formatLookupCandidate(candidate) {
+  const duplicateText = candidate.duplicate ? ", watchlist=already-present" : ", watchlist=not-present";
+  return `${formatEntry(candidate.entry)}, source=${candidate.source}${duplicateText}`;
 }
 
 function formatEntry(entry) {
@@ -687,8 +810,10 @@ function parseEntriesPayload(text) {
 }
 
 async function applyCommand(options) {
-  const text = options.fromResolve ? await readFile(options.fromResolve, "utf8") : options.entries ?? await readStdin();
-  if (!text.trim()) throw new Error("apply requires --entries JSON, --from-resolve JSON, or JSON on stdin");
+  const text = await readApplyPayload(options);
+  if (!text.trim()) {
+    throw new Error("apply requires --entries JSON, --entries-base64 JSON, --from-resolve JSON, or JSON on stdin");
+  }
   const entries = parseEntriesPayload(text).map(cleanCandidate);
   if (entries.length === 0) throw new Error("No confirmed entries to apply");
   entries.forEach(validateCandidate);
@@ -734,6 +859,21 @@ async function applyCommand(options) {
   });
 }
 
+async function readApplyPayload(options) {
+  if (options.fromResolve) return readFile(options.fromResolve, "utf8");
+  if (options.entries !== undefined) return options.entries;
+  if (options.entriesBase64 !== undefined) return decodeEntriesBase64(options.entriesBase64);
+  return readStdin();
+}
+
+function decodeEntriesBase64(value) {
+  const text = String(value).trim();
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text) || text.length % 4 !== 0) {
+    throw new Error("--entries-base64 must be valid base64-encoded UTF-8 JSON");
+  }
+  return Buffer.from(text, "base64").toString("utf8");
+}
+
 async function writeWatchlist(path, items) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(items, null, 2)}\n`, "utf8");
@@ -742,14 +882,19 @@ async function writeWatchlist(path, items) {
 async function doctorCommand(options) {
   const hermesHome = process.env.HERMES_HOME || resolvePath(os.homedir(), ".hermes");
   const installedCli = resolvePath(hermesHome, "skills/watchlist-curator/bin/watchlist-curator.js");
+  const installedSkillDir = dirname(dirname(installedCli));
+  const installedSkillMd = resolvePath(installedSkillDir, "SKILL.md");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
-  const [skillInstalled, krx, us] = await Promise.all([
+  const [skillInstalled, skillMdInstalled, fixture, soilSmoke, krx, us] = await Promise.all([
     pathExists(installedCli),
+    pathExists(installedSkillMd),
+    inspectFixture(BUNDLED_SYMBOLS),
+    runSoilLookupSmoke(options),
     inspectWatchlist(options.watchlistKrx),
     inspectWatchlist(options.watchlistUs)
   ]);
   const report = {
-    ok: nodeMajor >= 18 && skillInstalled && krx.exists && krx.validJson && krx.writable && us.exists && us.validJson && us.writable,
+    ok: nodeMajor >= 18 && skillInstalled && skillMdInstalled && fixture.validJson && fixture.hasSoil && soilSmoke.ok && krx.exists && krx.validJson && krx.writable && us.exists && us.validJson && us.writable,
     node: {
       version: process.version,
       ok: nodeMajor >= 18,
@@ -758,14 +903,72 @@ async function doctorCommand(options) {
     hermesHome,
     skill: {
       currentPath: CLI_PATH,
+      currentSkillDir: SKILL_DIR,
       expectedHermesPath: installedCli,
+      expectedHermesSkillFile: installedSkillMd,
       installed: skillInstalled,
+      skillFileInstalled: skillMdInstalled,
       currentIsHermesInstall: resolvePath(CLI_PATH) === installedCli
     },
+    fixture,
+    lookupSmoke: soilSmoke,
     watchlists: { krx, us },
+    hermesInspect: {
+      listCommand: "hermes skills list",
+      inspectCommand: "hermes skills inspect watchlist-curator",
+      note: "If list shows watchlist-curator but inspect fails, reinstall with scripts/install-watchlist-curator-skill.sh and verify the expected Hermes skill file exists."
+    },
     note: "doctor only reads metadata and validates JSON; it does not modify watchlists."
   };
   printJson(report);
+}
+
+async function inspectFixture(path) {
+  const result = {
+    path,
+    exists: await pathExists(path),
+    validJson: false,
+    array: false,
+    count: 0,
+    hasSoil: false
+  };
+  if (!result.exists) {
+    result.message = "fixture file does not exist";
+    return result;
+  }
+  try {
+    const parsed = await readJsonFile(path);
+    result.validJson = true;
+    result.array = Array.isArray(parsed);
+    result.count = result.array ? parsed.length : 0;
+    result.hasSoil = result.array && parsed.some((entry) => normalizeTicker(entry.ticker, entry.market) === "010950");
+    if (!result.array) result.message = "fixture JSON must be an array";
+  } catch (error) {
+    result.message = error.message;
+  }
+  return result;
+}
+
+async function runSoilLookupSmoke(options) {
+  try {
+    const symbols = await loadSymbols(options.sourceFiles);
+    const result = await resolveOne({ query: "soil", memo: "" }, symbols, { ...options, offline: true, market: "auto" });
+    const entry = result.status === "resolved" ? cleanCandidate(result.candidate) : null;
+    return {
+      ok: Boolean(entry && entry.ticker === "010950" && entry.name === "S-Oil" && entry.market === "KOSPI"),
+      input: "soil",
+      expected: { ticker: "010950", name: "S-Oil", market: "KOSPI" },
+      actual: entry,
+      source: result.status === "resolved" ? result.candidate.source || "fixture" : undefined,
+      status: result.status
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      input: "soil",
+      message: error.message
+    };
+  }
 }
 
 async function inspectWatchlist(path) {
@@ -824,6 +1027,7 @@ async function main() {
     return;
   }
   if (options.command === "resolve") await resolveCommand(options);
+  if (options.command === "lookup") await lookupCommand(options);
   if (options.command === "propose") await proposeCommand(options);
   if (options.command === "apply") await applyCommand(options);
   if (options.command === "doctor") await doctorCommand(options);

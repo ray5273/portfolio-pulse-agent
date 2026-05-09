@@ -66,7 +66,19 @@ The US skill has the same CLI contract under `daily-us-chart-pulse`. Its omitted
 
 ## Watchlist Curator
 
-Use `watchlist-curator` to turn loose add requests into confirmed KRX/US watchlist entries. It proposes first and writes only after an explicit apply step:
+Use `watchlist-curator` to look up KRX/US tickers and markets, or to turn loose add requests into confirmed watchlist entries. Lookup is read-only and reports candidates plus duplicate status:
+
+```bash
+node skills/watchlist-curator/bin/watchlist-curator.js lookup \
+  --input "soil 주식시장과 티커 찾아줘" \
+  --watchlist-krx examples/watchlist.example.json \
+  --watchlist-us examples/us-watchlist.example.json \
+  --offline
+```
+
+For deterministic fixtures, `soil` resolves to `010950 S-Oil (KOSPI), source=fixture`. `lookup` always prints a Korean `humanSummary` and structured JSON, never an `applyCommand`, and never writes watchlists.
+
+For add requests, it proposes first and writes only after an explicit apply step:
 
 ```bash
 node skills/watchlist-curator/bin/watchlist-curator.js propose \
@@ -76,16 +88,16 @@ node skills/watchlist-curator/bin/watchlist-curator.js propose \
   --offline
 ```
 
-`propose` prints a Korean `humanSummary`, a `confirmationPrompt`, and, only when every new entry is deterministic, an exact `applyCommand`. After reviewing and confirming the exact entries, run that apply command unchanged. For structured debugging, use `propose --json` or `resolve`.
+`propose` prints a Korean `humanSummary`, a `confirmationPrompt`, and, only when every new entry is deterministic, `applyArgsJson` plus an exact shell fallback `applyCommand`. After reviewing and confirming the exact entries, Hermes/Python automation should parse `applyArgsJson` as a JSON array and run it as argv, for example with `subprocess.run(args, check=True)`. Do not reconstruct JSON-bearing commands with f-strings or manual escaping. For structured debugging, use `propose --json` or `resolve`.
 
 ```bash
 node skills/watchlist-curator/bin/watchlist-curator.js apply \
   --watchlist-krx /path/to/krx/watchlist.json \
   --watchlist-us /path/to/us/watchlist.json \
-  --entries '[{"ticker":"CRCL","name":"Circle Internet Group","market":"NYSE"}]'
+  --entries-base64 W3sidGlja2VyIjoiQ1JDTCIsIm5hbWUiOiJDaXJjbGUgSW50ZXJuZXQgR3JvdXAiLCJtYXJrZXQiOiJOWVNFIn1d
 ```
 
-`apply` also accepts a full resolver payload through stdin or `--from-resolve <path>`. Payloads with `okToApply=false`, `ambiguous`, or `unresolved` are rejected and never write to a watchlist.
+`apply` also accepts legacy inline JSON with `--entries <json>` and a full resolver payload through stdin or `--from-resolve <path>`. Payloads with `okToApply=false`, `ambiguous`, or `unresolved` are rejected and never write to a watchlist.
 
 Check a Hermes install without changing watchlists:
 
@@ -94,6 +106,8 @@ node skills/watchlist-curator/bin/watchlist-curator.js doctor
 ```
 
 When paths are omitted, the curator uses `$HERMES_HOME/config/krx-daily-chart-pulse/watchlist.json` and `$HERMES_HOME/config/us-daily-chart-pulse/watchlist.json`.
+
+`doctor` reports the current skill path, expected Hermes install path, fixture validity, default watchlist paths, and an offline `soil` lookup smoke test.
 
 ## Watchlist Format
 
@@ -136,6 +150,16 @@ The watchlist curator install script copies:
 - config directories for both KRX and US watchlists
 
 It never creates or overwrites real `watchlist.json` files.
+
+If `hermes skills list` shows `watchlist-curator` but `hermes skills inspect watchlist-curator` fails, reinstall with `bash scripts/install-watchlist-curator-skill.sh`, then run:
+
+```bash
+node skills/watchlist-curator/bin/watchlist-curator.js doctor
+hermes skills list
+hermes skills inspect watchlist-curator
+```
+
+Check that `doctor.skill.expectedHermesSkillFile` exists and that `doctor.lookupSmoke.ok` is `true`.
 
 The install script creates `~/.hermes/config/krx-daily-chart-pulse/`. If `watchlist.json` does not exist and `examples/watchlist.local.json` exists, it copies that local file once as the initial config watchlist. Existing config watchlists are never overwritten. If there is no local seed, the installer copies only `watchlist.example.json` as a template and does not create a real portfolio watchlist.
 

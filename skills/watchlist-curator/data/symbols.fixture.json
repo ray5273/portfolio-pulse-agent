@@ -35,6 +35,13 @@
     "aliases": ["hyundai motor", "hyundai", "현대차", "현대자동차"]
   },
   {
+    "ticker": "010950",
+    "name": "S-Oil",
+    "market": "KOSPI",
+    "country": "KR",
+    "aliases": ["s-oil", "soil", "s oil", "에쓰오일", "에스오일", "010950"]
+  },
+  {
     "ticker": "GOOG",
     "name": "Alphabet Class C",
     "market": "NASDAQ",

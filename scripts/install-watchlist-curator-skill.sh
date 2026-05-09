@@ -21,5 +21,11 @@ echo "Hermes US watchlist config directory: $US_CONFIG_DIR"
 echo "Existing watchlist.json files were not created or overwritten."
 
 if command -v hermes >/dev/null 2>&1; then
-  hermes skills list || hermes skills inspect watchlist-curator || true
+  hermes skills list || true
+  INSPECT_OUTPUT="$(hermes skills inspect watchlist-curator 2>&1 || true)"
+  printf '%s\n' "$INSPECT_OUTPUT"
+  if printf '%s\n' "$INSPECT_OUTPUT" | grep -Eq "Error:|No skill named"; then
+    echo "Warning: hermes skills inspect watchlist-curator failed."
+    echo "Run: node $TARGET/bin/watchlist-curator.js doctor"
+  fi
 fi

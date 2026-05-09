@@ -11,6 +11,8 @@
   "scripts": {
     "smoke": "bash scripts/smoke-test.sh",
     "smoke:us": "bash scripts/smoke-test-us.sh",
+    "smoke:curator": "bash scripts/smoke-test-watchlist-curator.sh",
+    "curator:lookup": "node skills/watchlist-curator/bin/watchlist-curator.js lookup --offline --watchlist-krx examples/watchlist.example.json --watchlist-us examples/us-watchlist.example.json",
     "curator:propose": "node skills/watchlist-curator/bin/watchlist-curator.js propose --offline --watchlist-krx examples/watchlist.example.json --watchlist-us examples/us-watchlist.example.json",
     "curator:resolve": "node skills/watchlist-curator/bin/watchlist-curator.js resolve --offline --watchlist-krx examples/watchlist.example.json --watchlist-us examples/us-watchlist.example.json",
     "pulse:dry-run": "node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json --dry-run",
