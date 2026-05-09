@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const TICKER_RE = /^[0-9A-Z.]{3,12}$/;
+const TICKER_RE = /^[0-9A-Z.]{1,12}$/;
 
 export async function loadWatchlist(path) {
   let parsed;

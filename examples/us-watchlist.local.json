@@ -10,6 +10,11 @@
     "market": "NYSE"
   },
   {
+    "ticker": "MU",
+    "name": "Micron Technology",
+    "market": "NASDAQ"
+  },
+  {
     "ticker": "TSLA",
     "name": "Tesla",
     "market": "NASDAQ"

@@ -52,12 +52,12 @@ node --input-type=module -e '
   const [summaryPath, batchesPath] = process.argv.slice(1);
   const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
   const batches = JSON.parse(readFileSync(batchesPath, "utf8"));
-  const expectedTickers = ["GOOG", "CRCL", "TSLA"];
-  if (summary.okCount !== 3 || summary.failCount !== 0) {
-    throw new Error(`Expected 3 successful tickers, got ok=${summary.okCount} fail=${summary.failCount}`);
+  const expectedTickers = ["GOOG", "CRCL", "MU", "TSLA"];
+  if (summary.okCount !== 4 || summary.failCount !== 0) {
+    throw new Error(`Expected 4 successful tickers, got ok=${summary.okCount} fail=${summary.failCount}`);
   }
-  if (!Array.isArray(batches) || batches.length !== 3) {
-    throw new Error(`Expected 3 send batches, found ${Array.isArray(batches) ? batches.length : "non-array"}`);
+  if (!Array.isArray(batches) || batches.length !== 4) {
+    throw new Error(`Expected 4 send batches, found ${Array.isArray(batches) ? batches.length : "non-array"}`);
   }
   const actualTickers = batches.map((batch) => batch.ticker);
   if (actualTickers.join(",") !== expectedTickers.join(",")) {
@@ -91,7 +91,7 @@ node --input-type=module -e '
   }
 ' "$SUMMARY" "$HERMES_BATCHES"
 
-for ticker in GOOG CRCL TSLA; do
+for ticker in GOOG CRCL MU TSLA; do
   ticker_dir="$OUT_DIR/$RUN_DATE/$ticker"
   for file in \
     chart-data.json \
@@ -120,13 +120,13 @@ for ticker in GOOG CRCL TSLA; do
 done
 
 media_count="$(grep -Ec '^MEDIA:/.+\.png$' "$HERMES_REPORT")"
-if [[ "$media_count" != "9" ]]; then
-  echo "Expected 9 Hermes MEDIA PNG lines, found $media_count" >&2
+if [[ "$media_count" != "12" ]]; then
+  echo "Expected 12 Hermes MEDIA PNG lines, found $media_count" >&2
   exit 1
 fi
 
 for phrase in \
-  "- 성공: 3/3" \
+  "- 성공: 4/4" \
   "- 실패: 0" \
   "- 드라이런: 예"; do
   if ! grep -Fq -- "$phrase" "$HERMES_REPORT"; then
@@ -165,10 +165,10 @@ node --input-type=module -e '
 
   const [batchesPath, hermesHome, runDate] = process.argv.slice(1);
   const batches = JSON.parse(readFileSync(batchesPath, "utf8"));
-  if (!Array.isArray(batches) || batches.length !== 3) {
-    throw new Error(`Expected 3 sender batches, found ${Array.isArray(batches) ? batches.length : "non-array"}`);
+  if (!Array.isArray(batches) || batches.length !== 4) {
+    throw new Error(`Expected 4 sender batches, found ${Array.isArray(batches) ? batches.length : "non-array"}`);
   }
-  if (batches.map((batch) => batch.ticker).join(",") !== "GOOG,CRCL,TSLA") {
+  if (batches.map((batch) => batch.ticker).join(",") !== "GOOG,CRCL,MU,TSLA") {
     throw new Error(`Unexpected sender order: ${batches.map((batch) => batch.ticker).join(",")}`);
   }
   const artifactRoot = path.join(hermesHome, "artifacts/us-daily-chart-pulse", runDate);
