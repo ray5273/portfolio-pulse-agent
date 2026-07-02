@@ -151,11 +151,12 @@ function usage() {
     "  - The input JSON must include bars with date and close.",
     "  - high and low are required for Bollinger and Ichimoku overlays to be fully useful.",
     "  - volume is optional but recommended for volume panel and participation read.",
-    "  - When --png-out is set, the script writes the main trend chart to that path and sibling overlay, momentum, structure, and pattern charts to *-overlay.png, *-momentum.png, *-structure.png, and *-pattern.png.",
+    "  - When --png-out is set, the script writes the main trend chart to that path and sibling overlay, momentum, volume, structure, and pattern charts to *-overlay.png, *-momentum.png, *-volume.png, *-structure.png, and *-pattern.png.",
+    "  - The volume chart is a dedicated panel with volume bars plus 5, 20, and 60-day volume moving-average lines and their latest values.",
     "  - The structure chart pairs candles with a horizontal volume-by-price gutter (POC highlighted) and ATR-tolerance clustered horizontal support/resistance zones (max 3 each, within ±30% of current price).",
     "  - A sibling *-structure-zones.csv lists every zone including broken/distance-filtered ones (type, zone_low, zone_high, center_price, touch_count, last_touch_date, score, status).",
     "  - The pattern chart overlays recent swing-pivot wave candidates and Fibonacci retracement/extension levels, with a sibling *-pattern-waves.csv for candidate/confidence details.",
-    "  - The markdown output prints all five image snippets plus Support / Resistance Zones and Pattern / Wave Candidate tables when PNG output is enabled.",
+    "  - The markdown output prints all six image snippets plus Support / Resistance Zones and Pattern / Wave Candidate tables when PNG output is enabled.",
   ].join("\n");
 }
 
@@ -1195,6 +1196,7 @@ function maPositionLabel(close, maValues) {
     ["MA20", maValues.ma20],
     ["MA60", maValues.ma60],
     ["MA120", maValues.ma120],
+    ["MA200", maValues.ma200],
   ].map(([label, value]) => {
     if (!Number.isFinite(close) || !Number.isFinite(value)) {
       return `${label} n/a`;
@@ -1297,6 +1299,7 @@ function buildMainInterpretationLines(metrics) {
       ma20: metrics.ma20Value,
       ma60: metrics.ma60Value,
       ma120: metrics.ma120Value,
+      ma200: metrics.ma200Value,
     })}`,
     `거래량: ${volumeRegimeKo(metrics.volumeRegime)} (${formatPercentRatio(metrics.volumeRatio, 1)})`,
     `확인: 20D 돌파 ${formatAxisNumber(metrics.breakoutLevel)} / 이탈 ${formatAxisNumber(metrics.breakdownLevel)}`,
@@ -1594,6 +1597,62 @@ function drawValueCallout(buffer, width, height, rightEdge, y, label, theme, pan
   drawText(buffer, width, height, boxLeft + paddingX, boxTop + 4, label, theme.close, 2);
 }
 
+function drawMovingAverageValueLabels(buffer, width, height, labels, rightEdge, panelTop, panelHeight, theme, reservedY = null) {
+  const paddingX = 8;
+  const boxHeight = 24;
+  const minGap = 4;
+  const validLabels = labels
+    .filter((item) => item.point && Number.isFinite(item.value))
+    .map((item) => ({
+      ...item,
+      desiredY: clamp(Math.round(item.point.y - boxHeight / 2), panelTop + 4, panelTop + panelHeight - boxHeight - 4),
+    }))
+    .sort((a, b) => a.desiredY - b.desiredY);
+
+  if (validLabels.length === 0) {
+    return;
+  }
+
+  const labelWidth = Math.max(...validLabels.map((item) => measureText(item.label, 2))) + paddingX * 2;
+  const boxLeft = rightEdge - labelWidth;
+  let previousBottom = panelTop + 4;
+  if (Number.isFinite(reservedY)) {
+    const reservedTop = clamp(Math.round(reservedY - boxHeight / 2), panelTop + 4, panelTop + panelHeight - boxHeight - 4);
+    if (reservedTop <= validLabels[0].desiredY) {
+      previousBottom = reservedTop + boxHeight + minGap;
+    }
+  }
+
+  for (const item of validLabels) {
+    item.boxTop = Math.max(item.desiredY, previousBottom);
+    previousBottom = item.boxTop + boxHeight + minGap;
+  }
+
+  const overflow = previousBottom - minGap - (panelTop + panelHeight - 4);
+  if (overflow > 0) {
+    for (let index = validLabels.length - 1; index >= 0; index -= 1) {
+      const maxTop = index === validLabels.length - 1
+        ? panelTop + panelHeight - boxHeight - 4
+        : validLabels[index + 1].boxTop - boxHeight - minGap;
+      validLabels[index].boxTop = Math.min(validLabels[index].boxTop - overflow, maxTop);
+    }
+  }
+
+  for (const item of validLabels) {
+    const boxTop = clamp(Math.round(item.boxTop), panelTop + 4, panelTop + panelHeight - boxHeight - 4);
+    const boxMiddle = boxTop + boxHeight / 2;
+    const fillColor = [255, 255, 255, 238];
+    drawLine(buffer, width, height, item.point.x, item.point.y, boxLeft - 2, boxMiddle, item.color, 1);
+    fillRect(buffer, width, height, boxLeft, boxTop, labelWidth, boxHeight, fillColor);
+    drawLine(buffer, width, height, boxLeft, boxTop, boxLeft + labelWidth, boxTop, item.color, 1);
+    drawLine(buffer, width, height, boxLeft, boxTop + boxHeight, boxLeft + labelWidth, boxTop + boxHeight, item.color, 1);
+    drawLine(buffer, width, height, boxLeft, boxTop, boxLeft, boxTop + boxHeight, item.color, 1);
+    drawLine(buffer, width, height, boxLeft + labelWidth, boxTop, boxLeft + labelWidth, boxTop + boxHeight, item.color, 1);
+    fillRect(buffer, width, height, boxLeft + 6, boxTop + 8, 10, 8, item.color);
+    drawText(buffer, width, height, boxLeft + paddingX + 14, boxTop + 4, item.label, item.color, 2);
+  }
+}
+
 function drawTextBox(buffer, width, height, x, y, boxWidth, lines, theme) {
   const paddingX = 12;
   const paddingY = 10;
@@ -1804,6 +1863,7 @@ function buildChartPngs(data, bars, metrics, options) {
     ma20: [239, 68, 68, 255],
     ma60: [249, 115, 22, 255],
     ma120: [147, 51, 234, 255],
+    ma200: [14, 165, 233, 255],
     bollinger: [15, 23, 42, 255],
     bollingerFill: [15, 23, 42, 28],
     tenkan: [192, 38, 211, 255],
@@ -1814,6 +1874,10 @@ function buildChartPngs(data, bars, metrics, options) {
     cloudBear: [239, 68, 68, 42],
     volumeUp: [34, 197, 94, 255],
     volumeDown: [239, 68, 68, 255],
+    volumeBar: [148, 163, 184, 220],
+    volMa5: [34, 197, 94, 255],
+    volMa20: [234, 88, 12, 255],
+    volMa60: [79, 70, 229, 255],
     rsi: [124, 58, 237, 255],
     rsiGuide: [148, 163, 184, 255],
     macd: [37, 99, 235, 255],
@@ -1858,6 +1922,7 @@ function buildChartPngs(data, bars, metrics, options) {
     ma20: metrics.ma20Series.slice(startIndex),
     ma60: metrics.ma60Series.slice(startIndex),
     ma120: metrics.ma120Series.slice(startIndex),
+    ma200: metrics.ma200Series.slice(startIndex),
     bbUpper: metrics.bollingerSeriesData.upper.slice(startIndex),
     bbLower: metrics.bollingerSeriesData.lower.slice(startIndex),
     tenkan: metrics.ichimokuSeriesData.tenkan.slice(startIndex),
@@ -1868,6 +1933,9 @@ function buildChartPngs(data, bars, metrics, options) {
     adx: metrics.adxSeriesData.adx.slice(startIndex),
     plusDi: metrics.adxSeriesData.plusDi.slice(startIndex),
     minusDi: metrics.adxSeriesData.minusDi.slice(startIndex),
+    volMa5: metrics.volume5Series.slice(startIndex),
+    volMa20: metrics.volume20Series.slice(startIndex),
+    volMa60: metrics.volume60Series.slice(startIndex),
   };
 
   const volumeMax = Math.max(...barsWindow.map((bar) => (Number.isFinite(bar.volume) ? bar.volume : 0)), 1);
@@ -1996,6 +2064,7 @@ function buildChartPngs(data, bars, metrics, options) {
     momentumOutput: path.resolve(appendSuffixToPath(options.pngOut, "momentum")),
     structureOutput: path.resolve(appendSuffixToPath(options.pngOut, "structure")),
     patternOutput: path.resolve(appendSuffixToPath(options.pngOut, "pattern")),
+    volumeOutput: path.resolve(appendSuffixToPath(options.pngOut, "volume")),
     mainImagePath: options.imagePath || path.basename(options.pngOut),
     overlayImagePath: options.imagePath
       ? appendSuffixToPath(options.imagePath, "overlay")
@@ -2009,6 +2078,9 @@ function buildChartPngs(data, bars, metrics, options) {
     patternImagePath: options.imagePath
       ? appendSuffixToPath(options.imagePath, "pattern")
       : appendSuffixToPath(path.basename(options.pngOut), "pattern"),
+    volumeImagePath: options.imagePath
+      ? appendSuffixToPath(options.imagePath, "volume")
+      : appendSuffixToPath(path.basename(options.pngOut), "volume"),
   };
 
   const buildMomentumChart = () => {
@@ -2151,6 +2223,82 @@ function buildChartPngs(data, bars, metrics, options) {
     writePng(chartPaths.momentumOutput, buffer);
   };
 
+  const buildVolumeChart = () => {
+    const buffer = createRgbaBuffer(width, height, theme.background);
+    const totalSlotsForVolume = barsWindow.length;
+    const chartTitle = String(data.name || data.ticker || "UNKNOWN");
+    const xForSlot = (slot) => {
+      if (totalSlotsForVolume <= 1) {
+        return margin.left + plotWidth / 2;
+      }
+      return margin.left + (plotWidth * slot) / (totalSlotsForVolume - 1);
+    };
+
+    const panelTop = margin.top + headerHeight;
+    const panelHeight = dualPanelHeight;
+
+    fillRect(buffer, width, height, margin.left, panelTop, plotWidth, panelHeight, theme.panel);
+    drawLine(buffer, width, height, margin.left, panelTop, margin.left + plotWidth, panelTop, theme.border, 1);
+    drawLine(buffer, width, height, margin.left, panelTop + panelHeight, margin.left + plotWidth, panelTop + panelHeight, theme.border, 1);
+    drawLine(buffer, width, height, margin.left, panelTop, margin.left, panelTop + panelHeight, theme.border, 1);
+    drawLine(buffer, width, height, margin.left + plotWidth, panelTop, margin.left + plotWidth, panelTop + panelHeight, theme.border, 1);
+
+    drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 거래량 이동평균`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
+
+    let legendX = margin.left;
+    const legendY = margin.top + 56;
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.candleUp, "매수 우위(상승)");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.candleDown, "매도 우위(하락)");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa5, "5일 거래량 이평");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa20, "20일 거래량 이평");
+    drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa60, "60일 거래량 이평");
+
+    drawText(buffer, width, height, margin.left - 72, panelTop + 6, "거래량", theme.muted, 2);
+
+    drawVolumeAxis(buffer, panelTop, panelHeight);
+    drawDateTicks(buffer, xForSlot, panelTop + panelHeight, panelTop + panelHeight + 14, totalSlotsForVolume);
+    drawText(buffer, width, height, margin.left + plotWidth / 2, panelTop + panelHeight + 42, "날짜", theme.muted, 2, "center");
+
+    const volumeBarWidth = Math.max(3, Math.floor(plotWidth / Math.max(barsWindow.length * 1.8, 1)));
+    barsWindow.forEach((bar, index) => {
+      if (!Number.isFinite(bar.volume)) {
+        return;
+      }
+      const x = xForSlot(index);
+      const previousClose = index === 0 ? bar.close : barsWindow[index - 1].close;
+      const color = bar.close >= previousClose ? theme.candleUp : theme.candleDown;
+      const barHeight = Math.max(2, Math.round((bar.volume / volumeMax) * (panelHeight - 4)));
+      fillRect(buffer, width, height, x - volumeBarWidth / 2, panelTop + panelHeight - barHeight, volumeBarWidth, barHeight, color);
+    });
+
+    const volMa5Points = mapSeriesToPoints(priceSeries.volMa5, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
+    const volMa20Points = mapSeriesToPoints(priceSeries.volMa20, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
+    const volMa60Points = mapSeriesToPoints(priceSeries.volMa60, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
+
+    drawSeries(buffer, width, height, volMa60Points, theme.volMa60, 2);
+    drawSeries(buffer, width, height, volMa20Points, theme.volMa20, 2);
+    drawSeries(buffer, width, height, volMa5Points, theme.volMa5, 2);
+
+    drawMovingAverageValueLabels(
+      buffer,
+      width,
+      height,
+      [
+        { label: `5일 ${formatAxisNumber(metrics.volumeMa5Value)}`, value: metrics.volumeMa5Value, point: volMa5Points[barsWindow.length - 1], color: theme.volMa5 },
+        { label: `20일 ${formatAxisNumber(metrics.volumeMa20Value)}`, value: metrics.volumeMa20Value, point: volMa20Points[barsWindow.length - 1], color: theme.volMa20 },
+        { label: `60일 ${formatAxisNumber(metrics.volumeMa60Value)}`, value: metrics.volumeMa60Value, point: volMa60Points[barsWindow.length - 1], color: theme.volMa60 },
+      ],
+      margin.left + plotWidth - 8,
+      panelTop,
+      panelHeight,
+      theme,
+    );
+
+    writePng(chartPaths.volumeOutput, buffer);
+  };
+
   const buildMainTrendChart = () => {
     const buffer = createRgbaBuffer(width, height, theme.background);
     const totalSlotsForMain = barsWindow.length;
@@ -2170,6 +2318,7 @@ function buildChartPngs(data, bars, metrics, options) {
       priceSeries.ma20,
       priceSeries.ma60,
       priceSeries.ma120,
+      priceSeries.ma200,
     ]);
 
     fillRect(buffer, width, height, margin.left, priceTop, plotWidth, mainPriceHeight, theme.panel);
@@ -2193,7 +2342,8 @@ function buildChartPngs(data, bars, metrics, options) {
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma5, "5일선");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma20, "20일선");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma60, "60일선");
-    drawLegendItem(buffer, width, height, legendX, legendY, theme.ma120, "120일선");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma120, "120일선");
+    drawLegendItem(buffer, width, height, legendX, legendY, theme.ma200, "200일선");
 
     drawText(buffer, width, height, margin.left - 54, priceTop + 6, "주가", theme.muted, 2);
     drawText(buffer, width, height, margin.left - 72, volumeTop + 6, "거래량", theme.muted, 2);
@@ -2208,9 +2358,11 @@ function buildChartPngs(data, bars, metrics, options) {
     const ma20Points = mapSeriesToPoints(priceSeries.ma20, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
     const ma60Points = mapSeriesToPoints(priceSeries.ma60, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
     const ma120Points = mapSeriesToPoints(priceSeries.ma120, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
+    const ma200Points = mapSeriesToPoints(priceSeries.ma200, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
 
     drawCandlesticks(buffer, width, height, barsWindow, xForSlot, priceRange.min, priceRange.max, priceTop, mainPriceHeight, theme);
     drawSeries(buffer, width, height, closePoints, theme.close, 1);
+    drawSeries(buffer, width, height, ma200Points, theme.ma200, 2);
     drawSeries(buffer, width, height, ma120Points, theme.ma120, 2);
     drawSeries(buffer, width, height, ma60Points, theme.ma60, 2);
     drawSeries(buffer, width, height, ma20Points, theme.ma20, 2);
@@ -2242,6 +2394,24 @@ function buildChartPngs(data, bars, metrics, options) {
         mainPriceHeight,
       );
     }
+
+    drawMovingAverageValueLabels(
+      buffer,
+      width,
+      height,
+      [
+        { label: `MA5 ${formatAxisNumber(metrics.ma5Value)}`, value: metrics.ma5Value, point: ma5Points[barsWindow.length - 1], color: theme.ma5 },
+        { label: `MA20 ${formatAxisNumber(metrics.ma20Value)}`, value: metrics.ma20Value, point: ma20Points[barsWindow.length - 1], color: theme.ma20 },
+        { label: `MA60 ${formatAxisNumber(metrics.ma60Value)}`, value: metrics.ma60Value, point: ma60Points[barsWindow.length - 1], color: theme.ma60 },
+        { label: `MA120 ${formatAxisNumber(metrics.ma120Value)}`, value: metrics.ma120Value, point: ma120Points[barsWindow.length - 1], color: theme.ma120 },
+        { label: `MA200 ${formatAxisNumber(metrics.ma200Value)}`, value: metrics.ma200Value, point: ma200Points[barsWindow.length - 1], color: theme.ma200 },
+      ],
+      margin.left + plotWidth - 8,
+      priceTop,
+      mainPriceHeight,
+      theme,
+      latestClosePoint ? latestClosePoint.y : null,
+    );
 
     const volumeBarWidth = Math.max(3, Math.floor(plotWidth / Math.max(barsWindow.length * 1.8, 1)));
     barsWindow.forEach((bar, index) => {
@@ -2741,6 +2911,7 @@ function buildChartPngs(data, bars, metrics, options) {
   buildMainTrendChart();
   buildOverlayChart();
   buildMomentumChart();
+  buildVolumeChart();
   const structureResult = buildStructureChart();
   const patternResult = buildPatternChart();
 
@@ -2751,6 +2922,7 @@ function buildChartPngs(data, bars, metrics, options) {
       momentum: chartPaths.momentumImagePath,
       structure: chartPaths.structureImagePath,
       pattern: chartPaths.patternImagePath,
+      volume: chartPaths.volumeImagePath,
     },
     chartBarsUsed: barsWindow.length,
     leadBarsUsed: leadSlots,
@@ -3077,8 +3249,10 @@ function main() {
     console.log("");
     console.log(`![${data.name || data.ticker || "차트"} 패턴/파동 차트](${pngInfo.imagePaths.pattern})`);
     console.log("");
+    console.log(`![${data.name || data.ticker || "차트"} 거래량 이동평균 차트](${pngInfo.imagePaths.volume})`);
+    console.log("");
     console.log(
-      `주가 추세 차트는 위아래 꼬리가 있는 OHLC 캔들과 MA5, MA20, MA60, MA120, 거래량을 함께 보여줍니다. 보조지표 차트는 Bollinger Bands, Ichimoku 구름대, RSI14를 분리해 보여주며 선행 구름 표시를 위해 ${pngInfo.leadBarsUsed}개 미래 구간을 확보합니다. 모멘텀 차트는 MACD, Signal, Histogram, ADX/DMI에 집중해 교차, 모멘텀 가속, 추세 강도를 보기 쉽게 합니다. 구조 차트는 volume-by-price, POC, 지지/저항 zone을 함께 보여주며 전체 zone 목록은 CSV로 저장합니다. 패턴/파동 차트는 swing pivot wave 후보와 Fibonacci 되돌림/확장 기준선을 표시하고 후보 목록은 CSV로 저장합니다.`,
+      `주가 추세 차트는 위아래 꼬리가 있는 OHLC 캔들과 MA5, MA20, MA60, MA120, MA200, 거래량을 함께 보여줍니다. 보조지표 차트는 Bollinger Bands, Ichimoku 구름대, RSI14를 분리해 보여주며 선행 구름 표시를 위해 ${pngInfo.leadBarsUsed}개 미래 구간을 확보합니다. 모멘텀 차트는 MACD, Signal, Histogram, ADX/DMI에 집중해 교차, 모멘텀 가속, 추세 강도를 보기 쉽게 합니다. 거래량 이동평균 차트는 거래량 막대와 5·20·60일 거래량 이동평균선, 각 선의 최신값을 별도 패널로 보여줍니다. 구조 차트는 volume-by-price, POC, 지지/저항 zone을 함께 보여주며 전체 zone 목록은 CSV로 저장합니다. 패턴/파동 차트는 swing pivot wave 후보와 Fibonacci 되돌림/확장 기준선을 표시하고 후보 목록은 CSV로 저장합니다.`,
     );
     console.log("");
 
@@ -3136,6 +3310,7 @@ function main() {
   console.log(`| MA 20 | ${formatNumber(metrics.ma20Value)} |`);
   console.log(`| MA 60 | ${formatNumber(metrics.ma60Value)} |`);
   console.log(`| MA 120 | ${formatNumber(metrics.ma120Value)} |`);
+  console.log(`| MA 200 | ${formatNumber(metrics.ma200Value)} |`);
   console.log(`| Bollinger 상단 | ${formatNumber(metrics.bollinger.upper)} |`);
   console.log(`| Bollinger 중심 | ${formatNumber(metrics.bollinger.middle)} |`);
   console.log(`| Bollinger 하단 | ${formatNumber(metrics.bollinger.lower)} |`);

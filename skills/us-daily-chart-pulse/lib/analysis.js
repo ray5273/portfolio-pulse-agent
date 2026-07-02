@@ -103,6 +103,7 @@ export function renderMessage(analysis, artifactPaths) {
     artifactPaths.main,
     artifactPaths.overlay,
     artifactPaths.momentum,
+    artifactPaths.volume,
     artifactPaths.structure,
     artifactPaths.pattern
   ].filter(Boolean);

@@ -7,7 +7,7 @@ description: Generate daily KRX chart artifacts and Hermes Telegram-ready portfo
 
 Generate a daily KRX chart pulse for a configured watchlist and prepare Telegram-ready payload artifacts for Hermes delivery.
 
-Telegram images are rendered by the vendored `ray5273/stock-analysis-skill` `kr-stock-analysis` `chart-basics.js` workflow: main trend, overlay, momentum, structure, and pattern/wave charts.
+Telegram images are rendered by the vendored `ray5273/stock-analysis-skill` `kr-stock-analysis` `chart-basics.js` workflow: main trend (with MA5/20/60/120/200 and price labels), overlay, momentum, volume moving-average, structure, and pattern/wave charts.
 
 ## When To Use
 
@@ -54,6 +54,7 @@ For each ticker, write:
 - `chart.png`
 - `chart-overlay.png`
 - `chart-momentum.png`
+- `chart-volume.png`
 - `chart-structure.png`
 - `chart-pattern.png`
 - `chart-structure-zones.csv`
@@ -66,11 +67,11 @@ The default root is `.tmp/portfolio-pulse/YYYY-MM-DD/<ticker>/`.
 
 Do not ask for Telegram secrets. Hermes owns Telegram delivery and uses its configured home channel for `target="telegram"`. Use `--deliver local` in Hermes cron configuration so the cron final response is not automatically delivered to Telegram.
 
-For Telegram image attachments in cron, attach `hermes-send-krx-batches.py` as the job script. Current Hermes cron sessions disable the interactive `messaging` toolset, so the script runs the CLI with `--emit-hermes-send-batches`, parses stdout as a JSON array, and calls Hermes' own `send_message` implementation with `target="telegram"` in array order. The message body is `batch.text` followed by five plain `MEDIA:/absolute/path/file.png` lines from `batch.media`, preserving media order. It waits for one ticker send to succeed before sending the next ticker.
+For Telegram image attachments in cron, attach `hermes-send-krx-batches.py` as the job script. Current Hermes cron sessions disable the interactive `messaging` toolset, so the script runs the CLI with `--emit-hermes-send-batches`, parses stdout as a JSON array, and calls Hermes' own `send_message` implementation with `target="telegram"` in array order. The message body is `batch.text` followed by six plain `MEDIA:/absolute/path/file.png` lines from `batch.media`, preserving media order. It waits for one ticker send to succeed before sending the next ticker.
 
 Hermes cron should run with `--workdir "$HERMES_HOME"`. The sender script uses `$HERMES_HOME/config/krx-daily-chart-pulse/watchlist.json` by default and writes artifacts under `$HERMES_HOME/artifacts/krx-daily-chart-pulse`. `KRX_WATCHLIST` remains supported as an override; relative override paths are resolved from the Hermes config directory.
 
-Each successful ticker batch includes `chart.png`, `chart-overlay.png`, `chart-momentum.png`, `chart-structure.png`, and `chart-pattern.png` in that order. `MEDIA:` lines are still converted by Hermes into native image attachments, but they should appear inside each per-ticker `send_message` call, not in the cron final response. The final response should be a short local summary such as `Sent N/M ticker batches`.
+Each successful ticker batch includes `chart.png`, `chart-overlay.png`, `chart-momentum.png`, `chart-volume.png`, `chart-structure.png`, and `chart-pattern.png` in that order. `MEDIA:` lines are still converted by Hermes into native image attachments, but they should appear inside each per-ticker `send_message` call, not in the cron final response. The final response should be a short local summary such as `Sent N/M ticker batches`.
 
 `send-payload.json` and `result.json` intentionally keep relative artifact paths. Absolute paths are emitted only in Hermes-facing report or send-batch outputs.
 

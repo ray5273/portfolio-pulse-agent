@@ -23,7 +23,7 @@ function tickerSeed(ticker) {
   return [...ticker].reduce((acc, char) => acc + char.charCodeAt(0), 0);
 }
 
-export function buildMockRows(ticker, runDate, count = 140) {
+export function buildMockRows(ticker, runDate, count = 420) {
   const rng = pseudoRandom(tickerSeed(ticker) * 1009);
   const rows = [];
   let close = 45000 + (tickerSeed(ticker) % 30) * 1200;
@@ -77,7 +77,7 @@ function parseNaverRows(text) {
 export async function fetchKrxRows(ticker, runDate) {
   const end = parseRunDate(runDate);
   const start = new Date(end);
-  start.setDate(start.getDate() - 280);
+  start.setDate(start.getDate() - 730);
   const params = new URLSearchParams({
     symbol: ticker,
     requestType: "1",
@@ -98,7 +98,7 @@ export async function fetchKrxRows(ticker, runDate) {
   if (rows.length < 60) {
     throw new Error(`Not enough daily rows for ${ticker}; received ${rows.length}`);
   }
-  return rows.slice(-160);
+  return rows.slice(-420);
 }
 
 export async function getRows({ ticker, runDate, dryRun }) {

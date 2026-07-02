@@ -448,20 +448,21 @@ function classifyAdx(adxData, latestIndex) {
 }
 
 function classifyMovingAverageStructure(close, maValues) {
-  const { ma5, ma20, ma60, ma120 } = maValues;
+  const { ma5, ma20, ma60, ma120, ma200 } = maValues;
   if (![close, ma5, ma20, ma60, ma120].every(Number.isFinite)) {
     return "insufficient-data";
   }
-  if (close > ma5 && ma5 > ma20 && ma20 > ma60 && ma60 > ma120) {
+  const hasMa200 = Number.isFinite(ma200);
+  if (close > ma5 && ma5 > ma20 && ma20 > ma60 && ma60 > ma120 && (!hasMa200 || ma120 > ma200)) {
     return "strong-bullish";
   }
-  if (close < ma5 && ma5 < ma20 && ma20 < ma60 && ma60 < ma120) {
+  if (close < ma5 && ma5 < ma20 && ma20 < ma60 && ma60 < ma120 && (!hasMa200 || ma120 < ma200)) {
     return "strong-bearish";
   }
-  if (close > ma20 && ma20 > ma60 && ma60 > ma120) {
+  if (close > ma20 && ma20 > ma60 && ma60 > ma120 && (!hasMa200 || ma120 > ma200)) {
     return "bullish";
   }
-  if (close < ma20 && ma20 < ma60 && ma60 < ma120) {
+  if (close < ma20 && ma20 < ma60 && ma60 < ma120 && (!hasMa200 || ma120 < ma200)) {
     return "bearish";
   }
   if (close > ma20 && close < ma60) {
@@ -744,7 +745,9 @@ function buildMetrics(bars) {
   const rsi14Series = rsiSeries(closes, 14);
   const macd = macdSeries(closes, 12, 26, 9);
   const adx = adxSeries(highs, lows, closes, 14);
+  const volume5Series = rollingAverageSeries(volumes, 5);
   const volume20Series = rollingAverageSeries(volumes, 20);
+  const volume60Series = rollingAverageSeries(volumes, 60);
   const bollinger = bollingerSeries(closes, 20, 2);
   const ichimoku = ichimokuSeries(highs, lows, closes);
 
@@ -766,6 +769,7 @@ function buildMetrics(bars) {
     ma20: ma20Series[latestIndex],
     ma60: ma60Series[latestIndex],
     ma120: ma120Series[latestIndex],
+    ma200: ma200Series[latestIndex],
   };
 
   const metrics = {
@@ -793,6 +797,13 @@ function buildMetrics(bars) {
     macdSeriesData: macd,
     adxSeriesData: adx,
     avgVolume20: volume20Series[latestIndex],
+    volume5Series,
+    volume20Series,
+    volume60Series,
+    volumeMa5Value: volume5Series[latestIndex],
+    volumeMa20Value: volume20Series[latestIndex],
+    volumeMa60Value: volume60Series[latestIndex],
+    volumeSeries: volumes,
     volumeRatio,
     volumeRegime: classifyVolume(volumeRatio),
     breakoutLevel,

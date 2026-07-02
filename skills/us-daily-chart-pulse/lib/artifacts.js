@@ -81,6 +81,7 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
     main: path.join(tickerDir, "chart.png"),
     overlay: path.join(tickerDir, "chart-overlay.png"),
     momentum: path.join(tickerDir, "chart-momentum.png"),
+    volume: path.join(tickerDir, "chart-volume.png"),
     structure: path.join(tickerDir, "chart-structure.png"),
     pattern: path.join(tickerDir, "chart-pattern.png")
   };
@@ -108,6 +109,7 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
     main: rel(process.cwd(), artifactPaths.main),
     overlay: rel(process.cwd(), artifactPaths.overlay),
     momentum: rel(process.cwd(), artifactPaths.momentum),
+    volume: rel(process.cwd(), artifactPaths.volume),
     structure: rel(process.cwd(), artifactPaths.structure),
     pattern: rel(process.cwd(), artifactPaths.pattern)
   };
@@ -160,6 +162,7 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
       main: relativeArtifacts.main,
       overlay: relativeArtifacts.overlay,
       momentum: relativeArtifacts.momentum,
+      volume: relativeArtifacts.volume,
       structure: relativeArtifacts.structure,
       pattern: relativeArtifacts.pattern
     }
