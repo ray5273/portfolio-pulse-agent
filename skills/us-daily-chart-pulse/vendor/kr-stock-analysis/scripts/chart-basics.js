@@ -1875,7 +1875,7 @@ function buildChartPngs(data, bars, metrics, options) {
     volumeUp: [34, 197, 94, 255],
     volumeDown: [239, 68, 68, 255],
     volumeBar: [148, 163, 184, 220],
-    volMa5: [34, 197, 94, 255],
+    volMa5: [15, 23, 42, 255],
     volMa20: [234, 88, 12, 255],
     volMa60: [79, 70, 229, 255],
     rsi: [124, 58, 237, 255],
@@ -2249,8 +2249,8 @@ function buildChartPngs(data, bars, metrics, options) {
 
     let legendX = margin.left;
     const legendY = margin.top + 56;
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.candleUp, "매수 우위(상승)");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.candleDown, "매도 우위(하락)");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volumeUp, "매수 우위(상승)");
+    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volumeDown, "매도 우위(하락)");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa5, "5일 거래량 이평");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa20, "20일 거래량 이평");
     drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa60, "60일 거래량 이평");
@@ -2268,7 +2268,7 @@ function buildChartPngs(data, bars, metrics, options) {
       }
       const x = xForSlot(index);
       const previousClose = index === 0 ? bar.close : barsWindow[index - 1].close;
-      const color = bar.close >= previousClose ? theme.candleUp : theme.candleDown;
+      const color = bar.close >= previousClose ? theme.volumeUp : theme.volumeDown;
       const barHeight = Math.max(2, Math.round((bar.volume / volumeMax) * (panelHeight - 4)));
       fillRect(buffer, width, height, x - volumeBarWidth / 2, panelTop + panelHeight - barHeight, volumeBarWidth, barHeight, color);
     });
