@@ -153,6 +153,12 @@ function renderHermesReport(summary) {
       `MEDIA:${absFromResult(result.files.volume)}`,
       `MEDIA:${absFromResult(result.files.structure)}`,
       `MEDIA:${absFromResult(result.files.pattern)}`,
+      `MEDIA:${absFromResult(result.files.mainMonthly)}`,
+      `MEDIA:${absFromResult(result.files.overlayMonthly)}`,
+      `MEDIA:${absFromResult(result.files.momentumMonthly)}`,
+      `MEDIA:${absFromResult(result.files.volumeMonthly)}`,
+      `MEDIA:${absFromResult(result.files.structureMonthly)}`,
+      `MEDIA:${absFromResult(result.files.patternMonthly)}`,
       ""
     );
   }
@@ -191,7 +197,13 @@ function buildHermesSendBatches(summary) {
           absFromResult(result.files.momentum),
           absFromResult(result.files.volume),
           absFromResult(result.files.structure),
-          absFromResult(result.files.pattern)
+          absFromResult(result.files.pattern),
+          absFromResult(result.files.mainMonthly),
+          absFromResult(result.files.overlayMonthly),
+          absFromResult(result.files.momentumMonthly),
+          absFromResult(result.files.volumeMonthly),
+          absFromResult(result.files.structureMonthly),
+          absFromResult(result.files.patternMonthly)
         ]
       };
     });

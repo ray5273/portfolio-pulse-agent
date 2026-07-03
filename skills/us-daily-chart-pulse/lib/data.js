@@ -23,7 +23,7 @@ function tickerSeed(ticker) {
   return [...ticker].reduce((acc, char) => acc + char.charCodeAt(0), 0);
 }
 
-export function buildMockRows(ticker, runDate, count = 420) {
+export function buildMockRows(ticker, runDate, count = 2800) {
   const rng = pseudoRandom(tickerSeed(ticker) * 1009);
   const rows = [];
   let close = 65 + (tickerSeed(ticker) % 220);
@@ -68,7 +68,7 @@ function requireEnoughRows(ticker, source, rows) {
   if (rows.length < 60) {
     throw new Error(`${source} returned ${rows.length} valid daily rows for ${ticker}; expected at least 60`);
   }
-  return rows.slice(-420);
+  return rows.slice(-2800);
 }
 
 function parseYahooChartRows(ticker, payload) {
@@ -97,7 +97,7 @@ function parseYahooChartRows(ticker, payload) {
 async function fetchYahooRows(ticker, runDate) {
   const end = parseRunDate(runDate);
   const start = new Date(end);
-  start.setDate(start.getDate() - 730);
+  start.setDate(start.getDate() - 3840);
   const period2 = new Date(end);
   period2.setDate(period2.getDate() + 1);
   const params = new URLSearchParams({
@@ -163,7 +163,7 @@ function parseNasdaqRows(ticker, payload) {
 async function fetchNasdaqRows(ticker, runDate) {
   const end = parseRunDate(runDate);
   const start = new Date(end);
-  start.setDate(start.getDate() - 730);
+  start.setDate(start.getDate() - 3840);
   const symbol = encodeURIComponent(String(ticker).trim().toUpperCase());
   const params = new URLSearchParams({
     assetclass: "stocks",

@@ -105,7 +105,13 @@ export function renderMessage(analysis, artifactPaths) {
     artifactPaths.momentum,
     artifactPaths.volume,
     artifactPaths.structure,
-    artifactPaths.pattern
+    artifactPaths.pattern,
+    artifactPaths.mainMonthly,
+    artifactPaths.overlayMonthly,
+    artifactPaths.momentumMonthly,
+    artifactPaths.volumeMonthly,
+    artifactPaths.structureMonthly,
+    artifactPaths.patternMonthly
   ].filter(Boolean);
   return [
     `${analysis.ticker} ${analysis.name}: ${signalLabel(analysis.signal)} (${analysis.score}/100)`,
