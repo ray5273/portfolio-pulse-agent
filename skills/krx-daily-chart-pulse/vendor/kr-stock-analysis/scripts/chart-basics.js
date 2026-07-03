@@ -110,6 +110,7 @@ function parseArgs(argv) {
     chartBars: 120,
     width: 1600,
     height: 1100,
+    timeframe: "day",
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -117,6 +118,15 @@ function parseArgs(argv) {
     if (arg === "--input") {
       result.input = argv[i + 1];
       i += 1;
+    } else if (arg === "--timeframe") {
+      const value = String(argv[i + 1] || "").toLowerCase();
+      if (value !== "day" && value !== "month") {
+        throw new Error(`--timeframe must be "day" or "month" (got ${argv[i + 1]})`);
+      }
+      result.timeframe = value;
+      i += 1;
+    } else if (arg === "--monthly") {
+      result.timeframe = "month";
     } else if (arg === "--png-out") {
       result.pngOut = argv[i + 1];
       i += 1;
@@ -125,6 +135,7 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === "--chart-bars") {
       result.chartBars = Number(argv[i + 1]);
+      result.chartBarsExplicit = true;
       i += 1;
     } else if (arg === "--width") {
       result.width = Number(argv[i + 1]);
@@ -145,10 +156,12 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage:",
-    "  node chart-basics.js --input price-history.json [--png-out chart.png] [--image-path relative/path.png] [--chart-bars 120] [--width 1600] [--height 1100]",
+    "  node chart-basics.js --input price-history.json [--png-out chart.png] [--image-path relative/path.png] [--timeframe day|month] [--chart-bars 120] [--width 1600] [--height 1100]",
     "",
     "Notes:",
     "  - The input JSON must include bars with date and close.",
+    "  - --timeframe day (default) draws daily candles with MA5/20/60/120/200 and volume MA5/20/60.",
+    "  - --timeframe month (alias --monthly) aggregates the daily bars into monthly OHLCV and draws MA5/10/20/60 (months) plus volume MA5/10/20; supply several years of daily history so the longer monthly averages have enough data.",
     "  - high and low are required for Bollinger and Ichimoku overlays to be fully useful.",
     "  - volume is optional but recommended for volume panel and participation read.",
     "  - When --png-out is set, the script writes the main trend chart to that path and sibling overlay, momentum, volume, structure, and pattern charts to *-overlay.png, *-momentum.png, *-volume.png, *-structure.png, and *-pattern.png.",
@@ -1191,17 +1204,12 @@ function formatPriceWithDistance(price, currentPrice) {
   return `${formatAxisNumber(price)} (${formatPctDistance(currentPrice, price)})`;
 }
 
-function maPositionLabel(close, maValues) {
-  const labels = [
-    ["MA20", maValues.ma20],
-    ["MA60", maValues.ma60],
-    ["MA120", maValues.ma120],
-    ["MA200", maValues.ma200],
-  ].map(([label, value]) => {
-    if (!Number.isFinite(close) || !Number.isFinite(value)) {
-      return `${label} n/a`;
+function maPositionLabel(close, maList) {
+  const labels = maList.map((m) => {
+    if (!Number.isFinite(close) || !Number.isFinite(m.value)) {
+      return `MA${m.period} n/a`;
     }
-    return `${label} ${close >= value ? "위" : "아래"}`;
+    return `MA${m.period} ${close >= m.value ? "위" : "아래"}`;
   });
   return labels.join(" / ");
 }
@@ -1295,12 +1303,7 @@ function dmiDirectionKo(state) {
 function buildMainInterpretationLines(metrics) {
   return [
     `해석: ${movingAverageStructureKo(metrics.movingAverageStructure)}`,
-    `현재: ${maPositionLabel(metrics.latestClose, {
-      ma20: metrics.ma20Value,
-      ma60: metrics.ma60Value,
-      ma120: metrics.ma120Value,
-      ma200: metrics.ma200Value,
-    })}`,
+    `현재: ${maPositionLabel(metrics.latestClose, metrics.priceMovingAverages.slice(1))}`,
     `거래량: ${volumeRegimeKo(metrics.volumeRegime)} (${formatPercentRatio(metrics.volumeRatio, 1)})`,
     `확인: 20D 돌파 ${formatAxisNumber(metrics.breakoutLevel)} / 이탈 ${formatAxisNumber(metrics.breakdownLevel)}`,
     "주의: 이동평균은 후행 지표",
@@ -1800,8 +1803,8 @@ function pickTickIndices(length, count) {
   return [...indices].sort((a, b) => a - b);
 }
 
-function dateLabel(dateString) {
-  return dateString.slice(5);
+function dateLabel(dateString, monthly) {
+  return monthly ? dateString.slice(0, 7) : dateString.slice(5);
 }
 
 function valueToY(value, minValue, maxValue, top, height) {
@@ -1933,10 +1936,27 @@ function buildChartPngs(data, bars, metrics, options) {
     adx: metrics.adxSeriesData.adx.slice(startIndex),
     plusDi: metrics.adxSeriesData.plusDi.slice(startIndex),
     minusDi: metrics.adxSeriesData.minusDi.slice(startIndex),
-    volMa5: metrics.volume5Series.slice(startIndex),
-    volMa20: metrics.volume20Series.slice(startIndex),
-    volMa60: metrics.volume60Series.slice(startIndex),
   };
+
+  const isMonthly = metrics.maUnit === "month";
+  const maColorPalette = [theme.ma5, theme.ma20, theme.ma60, theme.ma120, theme.ma200];
+  const volMaColorPalette = [theme.volMa5, theme.volMa20, theme.volMa60];
+  const priceMaLines = metrics.priceMovingAverages.map((m, i) => ({
+    period: m.period,
+    value: m.value,
+    color: maColorPalette[i % maColorPalette.length],
+    series: m.series.slice(startIndex),
+    legend: isMonthly ? `${m.period}개월선` : `${m.period}일선`,
+    label: `MA${m.period}`,
+  }));
+  const volumeMaLines = metrics.volumeMovingAverages.map((m, i) => ({
+    period: m.period,
+    value: m.value,
+    color: volMaColorPalette[i % volMaColorPalette.length],
+    series: m.series.slice(startIndex),
+    legend: isMonthly ? `${m.period}개월 거래량 이평` : `${m.period}일 거래량 이평`,
+    label: isMonthly ? `${m.period}개월` : `${m.period}일`,
+  }));
 
   const volumeMax = Math.max(...barsWindow.map((bar) => (Number.isFinite(bar.volume) ? bar.volume : 0)), 1);
   const buildPriceRange = (seriesCollection) => {
@@ -2044,7 +2064,7 @@ function buildChartPngs(data, bars, metrics, options) {
     dateTickIndices.forEach((index) => {
       const x = xForSlot(index);
       drawLine(buffer, width, height, x, margin.top + headerHeight, x, chartBottom, theme.grid, 1);
-      drawText(buffer, width, height, x, labelBottom, dateLabel(barsWindow[index].date), theme.muted, 2, "center");
+      drawText(buffer, width, height, x, labelBottom, dateLabel(barsWindow[index].date, isMonthly), theme.muted, 2, "center");
     });
     if (totalSlotsForGrid > barsWindow.length) {
       const latestX = xForSlot(barsWindow.length - 1);
@@ -2244,16 +2264,16 @@ function buildChartPngs(data, bars, metrics, options) {
     drawLine(buffer, width, height, margin.left + plotWidth, panelTop, margin.left + plotWidth, panelTop + panelHeight, theme.border, 1);
 
     drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
-    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 거래량 이동평균`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 거래량 이동평균 (${isMonthly ? "월봉" : "일봉"})`, theme.muted, 2);
     drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
 
     let legendX = margin.left;
     const legendY = margin.top + 56;
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volumeUp, "매수 우위(상승)");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volumeDown, "매도 우위(하락)");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa5, "5일 거래량 이평");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa20, "20일 거래량 이평");
-    drawLegendItem(buffer, width, height, legendX, legendY, theme.volMa60, "60일 거래량 이평");
+    volumeMaLines.forEach((line) => {
+      legendX = drawLegendItem(buffer, width, height, legendX, legendY, line.color, line.legend);
+    });
 
     drawText(buffer, width, height, margin.left - 72, panelTop + 6, "거래량", theme.muted, 2);
 
@@ -2273,23 +2293,24 @@ function buildChartPngs(data, bars, metrics, options) {
       fillRect(buffer, width, height, x - volumeBarWidth / 2, panelTop + panelHeight - barHeight, volumeBarWidth, barHeight, color);
     });
 
-    const volMa5Points = mapSeriesToPoints(priceSeries.volMa5, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
-    const volMa20Points = mapSeriesToPoints(priceSeries.volMa20, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
-    const volMa60Points = mapSeriesToPoints(priceSeries.volMa60, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume);
+    const volumeMaPointsList = volumeMaLines.map((line) =>
+      mapSeriesToPoints(line.series, xForSlot, 0, 0, volumeMax, panelTop, panelHeight, totalSlotsForVolume),
+    );
 
-    drawSeries(buffer, width, height, volMa60Points, theme.volMa60, 2);
-    drawSeries(buffer, width, height, volMa20Points, theme.volMa20, 2);
-    drawSeries(buffer, width, height, volMa5Points, theme.volMa5, 2);
+    for (let i = volumeMaPointsList.length - 1; i >= 0; i -= 1) {
+      drawSeries(buffer, width, height, volumeMaPointsList[i], volumeMaLines[i].color, 2);
+    }
 
     drawMovingAverageValueLabels(
       buffer,
       width,
       height,
-      [
-        { label: `5일 ${formatAxisNumber(metrics.volumeMa5Value)}`, value: metrics.volumeMa5Value, point: volMa5Points[barsWindow.length - 1], color: theme.volMa5 },
-        { label: `20일 ${formatAxisNumber(metrics.volumeMa20Value)}`, value: metrics.volumeMa20Value, point: volMa20Points[barsWindow.length - 1], color: theme.volMa20 },
-        { label: `60일 ${formatAxisNumber(metrics.volumeMa60Value)}`, value: metrics.volumeMa60Value, point: volMa60Points[barsWindow.length - 1], color: theme.volMa60 },
-      ],
+      volumeMaLines.map((line, i) => ({
+        label: `${line.label} ${formatAxisNumber(line.value)}`,
+        value: line.value,
+        point: volumeMaPointsList[i][barsWindow.length - 1],
+        color: line.color,
+      })),
       margin.left + plotWidth - 8,
       panelTop,
       panelHeight,
@@ -2314,11 +2335,7 @@ function buildChartPngs(data, bars, metrics, options) {
     const volumeTop = priceTop + mainPriceHeight + gap;
     const priceRange = buildPriceRange([
       priceSeries.close,
-      priceSeries.ma5,
-      priceSeries.ma20,
-      priceSeries.ma60,
-      priceSeries.ma120,
-      priceSeries.ma200,
+      ...priceMaLines.map((line) => line.series),
     ]);
 
     fillRect(buffer, width, height, margin.left, priceTop, plotWidth, mainPriceHeight, theme.panel);
@@ -2332,18 +2349,16 @@ function buildChartPngs(data, bars, metrics, options) {
     drawLine(buffer, width, height, margin.left + plotWidth, priceTop, margin.left + plotWidth, volumeTop + mainVolumeHeight, theme.border, 1);
 
     drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
-    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 주가 추세`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 주가 추세 (${isMonthly ? "월봉" : "일봉"})`, theme.muted, 2);
     drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
 
     const legendY = margin.top + 56;
     let legendX = margin.left;
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.candleUpFill, "캔들");
     legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.close, "종가선");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma5, "5일선");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma20, "20일선");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma60, "60일선");
-    legendX = drawLegendItem(buffer, width, height, legendX, legendY, theme.ma120, "120일선");
-    drawLegendItem(buffer, width, height, legendX, legendY, theme.ma200, "200일선");
+    priceMaLines.forEach((line) => {
+      legendX = drawLegendItem(buffer, width, height, legendX, legendY, line.color, line.legend);
+    });
 
     drawText(buffer, width, height, margin.left - 54, priceTop + 6, "주가", theme.muted, 2);
     drawText(buffer, width, height, margin.left - 72, volumeTop + 6, "거래량", theme.muted, 2);
@@ -2354,19 +2369,15 @@ function buildChartPngs(data, bars, metrics, options) {
     drawText(buffer, width, height, margin.left + plotWidth / 2, volumeTop + mainVolumeHeight + 42, "날짜", theme.muted, 2, "center");
 
     const closePoints = mapSeriesToPoints(priceSeries.close, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
-    const ma5Points = mapSeriesToPoints(priceSeries.ma5, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
-    const ma20Points = mapSeriesToPoints(priceSeries.ma20, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
-    const ma60Points = mapSeriesToPoints(priceSeries.ma60, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
-    const ma120Points = mapSeriesToPoints(priceSeries.ma120, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
-    const ma200Points = mapSeriesToPoints(priceSeries.ma200, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain);
+    const maPointsList = priceMaLines.map((line) =>
+      mapSeriesToPoints(line.series, xForSlot, 0, priceRange.min, priceRange.max, priceTop, mainPriceHeight, totalSlotsForMain),
+    );
 
     drawCandlesticks(buffer, width, height, barsWindow, xForSlot, priceRange.min, priceRange.max, priceTop, mainPriceHeight, theme);
     drawSeries(buffer, width, height, closePoints, theme.close, 1);
-    drawSeries(buffer, width, height, ma200Points, theme.ma200, 2);
-    drawSeries(buffer, width, height, ma120Points, theme.ma120, 2);
-    drawSeries(buffer, width, height, ma60Points, theme.ma60, 2);
-    drawSeries(buffer, width, height, ma20Points, theme.ma20, 2);
-    drawSeries(buffer, width, height, ma5Points, theme.ma5, 2);
+    for (let i = maPointsList.length - 1; i >= 0; i -= 1) {
+      drawSeries(buffer, width, height, maPointsList[i], priceMaLines[i].color, 2);
+    }
 
     const latestClosePoint = closePoints[barsWindow.length - 1];
     if (latestClosePoint) {
@@ -2399,13 +2410,12 @@ function buildChartPngs(data, bars, metrics, options) {
       buffer,
       width,
       height,
-      [
-        { label: `MA5 ${formatAxisNumber(metrics.ma5Value)}`, value: metrics.ma5Value, point: ma5Points[barsWindow.length - 1], color: theme.ma5 },
-        { label: `MA20 ${formatAxisNumber(metrics.ma20Value)}`, value: metrics.ma20Value, point: ma20Points[barsWindow.length - 1], color: theme.ma20 },
-        { label: `MA60 ${formatAxisNumber(metrics.ma60Value)}`, value: metrics.ma60Value, point: ma60Points[barsWindow.length - 1], color: theme.ma60 },
-        { label: `MA120 ${formatAxisNumber(metrics.ma120Value)}`, value: metrics.ma120Value, point: ma120Points[barsWindow.length - 1], color: theme.ma120 },
-        { label: `MA200 ${formatAxisNumber(metrics.ma200Value)}`, value: metrics.ma200Value, point: ma200Points[barsWindow.length - 1], color: theme.ma200 },
-      ],
+      priceMaLines.map((line, i) => ({
+        label: `${line.label} ${formatAxisNumber(line.value)}`,
+        value: line.value,
+        point: maPointsList[i][barsWindow.length - 1],
+        color: line.color,
+      })),
       margin.left + plotWidth - 8,
       priceTop,
       mainPriceHeight,
@@ -2651,7 +2661,7 @@ function buildChartPngs(data, bars, metrics, options) {
     dateTickIndices.forEach((index) => {
       const x = xForSlot(index);
       drawLine(buffer, width, height, x, priceTop, x, priceTop + structurePriceHeight, theme.grid, 1);
-      drawText(buffer, width, height, x, priceTop + structurePriceHeight + 14, dateLabel(barsWindow[index].date), theme.muted, 2, "center");
+      drawText(buffer, width, height, x, priceTop + structurePriceHeight + 14, dateLabel(barsWindow[index].date, isMonthly), theme.muted, 2, "center");
     });
     drawText(buffer, width, height, margin.left + candleAreaWidth / 2, priceTop + structurePriceHeight + 42, "날짜", theme.muted, 2, "center");
 
@@ -3195,6 +3205,38 @@ function renderRead(metrics) {
   console.log(practicalLine);
 }
 
+function aggregateBarsToMonthly(bars) {
+  const groups = new Map();
+  const order = [];
+  for (const bar of bars) {
+    if (!bar || typeof bar.date !== "string" || bar.date.length < 7) {
+      continue;
+    }
+    const key = bar.date.slice(0, 7); // YYYY-MM
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key).push(bar);
+  }
+  return order.map((key) => {
+    const group = groups.get(key);
+    const opener = group.find((b) => Number.isFinite(b.open));
+    const highs = group.map((b) => b.high).filter(Number.isFinite);
+    const lows = group.map((b) => b.low).filter(Number.isFinite);
+    const volumes = group.map((b) => b.volume).filter(Number.isFinite);
+    const last = group[group.length - 1];
+    return {
+      date: last.date,
+      open: opener ? opener.open : last.close,
+      high: highs.length ? Math.max(...highs) : last.close,
+      low: lows.length ? Math.min(...lows) : last.close,
+      close: last.close,
+      volume: volumes.length ? volumes.reduce((a, b) => a + b, 0) : 0,
+    };
+  });
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.input) {
@@ -3214,10 +3256,24 @@ function main() {
 
   const data = readJson(args.input);
   requireNamedChartInput(data, args);
-  const bars = normalizeTechnicalBars(data.bars || []);
-  requireValidTechnicalBars(bars);
-  const metrics = buildTechnicalMetrics(bars);
-  const pngInfo = args.pngOut ? buildChartPngs(data, bars, metrics, args) : null;
+  const dailyBars = normalizeTechnicalBars(data.bars || []);
+  requireValidTechnicalBars(dailyBars);
+
+  const monthly = args.timeframe === "month";
+  const bars = monthly ? aggregateBarsToMonthly(dailyBars) : dailyBars;
+  if (monthly && bars.length < 2) {
+    throw new Error("Not enough history to build monthly bars from the supplied daily data.");
+  }
+  const metricsOptions = monthly
+    ? { maPeriods: [5, 10, 20, 60], volMaPeriods: [5, 10, 20], maUnit: "month" }
+    : {};
+  const metrics = buildTechnicalMetrics(bars, metricsOptions);
+
+  const renderArgs = { ...args };
+  if (monthly && !args.chartBarsExplicit) {
+    renderArgs.chartBars = 60;
+  }
+  const pngInfo = args.pngOut ? buildChartPngs(data, bars, metrics, renderArgs) : null;
 
   console.log(`# 고급 차트 분석: ${data.ticker || "Unknown"}`);
   console.log("");
@@ -3306,11 +3362,9 @@ function main() {
   console.log("");
   console.log("| 항목 | 값 |");
   console.log("| --- | --- |");
-  console.log(`| MA 5 | ${formatNumber(metrics.ma5Value)} |`);
-  console.log(`| MA 20 | ${formatNumber(metrics.ma20Value)} |`);
-  console.log(`| MA 60 | ${formatNumber(metrics.ma60Value)} |`);
-  console.log(`| MA 120 | ${formatNumber(metrics.ma120Value)} |`);
-  console.log(`| MA 200 | ${formatNumber(metrics.ma200Value)} |`);
+  metrics.priceMovingAverages.forEach((m) => {
+    console.log(`| MA ${m.period} | ${formatNumber(m.value)} |`);
+  });
   console.log(`| Bollinger 상단 | ${formatNumber(metrics.bollinger.upper)} |`);
   console.log(`| Bollinger 중심 | ${formatNumber(metrics.bollinger.middle)} |`);
   console.log(`| Bollinger 하단 | ${formatNumber(metrics.bollinger.lower)} |`);

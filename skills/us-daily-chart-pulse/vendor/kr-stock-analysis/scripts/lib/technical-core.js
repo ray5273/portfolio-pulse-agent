@@ -448,27 +448,35 @@ function classifyAdx(adxData, latestIndex) {
 }
 
 function classifyMovingAverageStructure(close, maValues) {
-  const { ma5, ma20, ma60, ma120, ma200 } = maValues;
-  if (![close, ma5, ma20, ma60, ma120].every(Number.isFinite)) {
+  // Accepts an ordered array of MA values (short -> long) or the legacy
+  // { ma5, ma20, ma60, ma120, ma200 } object, so it works for any period set
+  // (e.g. daily 5/20/60/120/200 or monthly 5/10/20/60).
+  const mas = Array.isArray(maValues)
+    ? maValues.slice()
+    : [maValues.ma5, maValues.ma20, maValues.ma60, maValues.ma120, maValues.ma200];
+  if (!Number.isFinite(close) || mas.slice(0, 3).some((v) => !Number.isFinite(v))) {
     return "insufficient-data";
   }
-  const hasMa200 = Number.isFinite(ma200);
-  if (close > ma5 && ma5 > ma20 && ma20 > ma60 && ma60 > ma120 && (!hasMa200 || ma120 > ma200)) {
+  const finiteMas = mas.filter(Number.isFinite);
+  const strictlyDescending = (arr) => arr.every((v, i) => i === 0 || arr[i - 1] > v);
+  const strictlyAscending = (arr) => arr.every((v, i) => i === 0 || arr[i - 1] < v);
+  if (close > mas[0] && strictlyDescending(finiteMas)) {
     return "strong-bullish";
   }
-  if (close < ma5 && ma5 < ma20 && ma20 < ma60 && ma60 < ma120 && (!hasMa200 || ma120 < ma200)) {
+  if (close < mas[0] && strictlyAscending(finiteMas)) {
     return "strong-bearish";
   }
-  if (close > ma20 && ma20 > ma60 && ma60 > ma120 && (!hasMa200 || ma120 > ma200)) {
+  const midMas = finiteMas.slice(1);
+  if (close > mas[1] && strictlyDescending(midMas)) {
     return "bullish";
   }
-  if (close < ma20 && ma20 < ma60 && ma60 < ma120 && (!hasMa200 || ma120 < ma200)) {
+  if (close < mas[1] && strictlyAscending(midMas)) {
     return "bearish";
   }
-  if (close > ma20 && close < ma60) {
+  if (close > mas[1] && close < mas[2]) {
     return "rebound-inside-downtrend";
   }
-  if (close < ma20 && close > ma60) {
+  if (close < mas[1] && close > mas[2]) {
     return "pullback-inside-uptrend";
   }
   return "mixed";
@@ -727,7 +735,14 @@ function compute52WeekStats(closes, lookback = TRADING_DAYS_52W) {
   };
 }
 
-function buildMetrics(bars) {
+function buildMetrics(bars, options = {}) {
+  const priceMaPeriods = Array.isArray(options.maPeriods) && options.maPeriods.length
+    ? options.maPeriods
+    : [5, 20, 60, 120, 200];
+  const volumeMaPeriods = Array.isArray(options.volMaPeriods) && options.volMaPeriods.length
+    ? options.volMaPeriods
+    : [5, 20, 60];
+  const maUnit = options.maUnit === "month" ? "month" : "day";
   const closes = bars.map((bar) => bar.close);
   const highs = bars.map((bar) => bar.high);
   const lows = bars.map((bar) => bar.low);
@@ -752,6 +767,14 @@ function buildMetrics(bars) {
   const ichimoku = ichimokuSeries(highs, lows, closes);
 
   const latestIndex = bars.length - 1;
+  const priceMovingAverages = priceMaPeriods.map((period) => {
+    const series = rollingAverageSeries(closes, period);
+    return { period, series, value: series[latestIndex] };
+  });
+  const volumeMovingAverages = volumeMaPeriods.map((period) => {
+    const series = rollingAverageSeries(volumes, period);
+    return { period, series, value: series[latestIndex] };
+  });
   const volumeRatio =
     Number.isFinite(volume20Series[latestIndex]) && Number.isFinite(latest.volume) && volume20Series[latestIndex] !== 0
       ? latest.volume / volume20Series[latestIndex]
@@ -790,7 +813,10 @@ function buildMetrics(bars) {
     ma120Value: ma120Series[latestIndex],
     ma150Value: ma150Series[latestIndex],
     ma200Value: ma200Series[latestIndex],
-    movingAverageStructure: classifyMovingAverageStructure(latestClose, maValues),
+    movingAverageStructure: classifyMovingAverageStructure(latestClose, priceMovingAverages.map((m) => m.value)),
+    priceMovingAverages,
+    volumeMovingAverages,
+    maUnit,
     rsi14Series,
     rsi14Value: rsi14Series[latestIndex],
     rsiState: classifyRsi(rsi14Series[latestIndex]),
