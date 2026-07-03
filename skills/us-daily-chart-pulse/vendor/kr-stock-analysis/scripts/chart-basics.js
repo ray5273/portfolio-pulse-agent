@@ -120,11 +120,13 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === "--timeframe") {
       const value = String(argv[i + 1] || "").toLowerCase();
-      if (value !== "day" && value !== "month") {
-        throw new Error(`--timeframe must be "day" or "month" (got ${argv[i + 1]})`);
+      if (value !== "day" && value !== "week" && value !== "month") {
+        throw new Error(`--timeframe must be "day", "week", or "month" (got ${argv[i + 1]})`);
       }
       result.timeframe = value;
       i += 1;
+    } else if (arg === "--weekly") {
+      result.timeframe = "week";
     } else if (arg === "--monthly") {
       result.timeframe = "month";
     } else if (arg === "--png-out") {
@@ -156,12 +158,12 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage:",
-    "  node chart-basics.js --input price-history.json [--png-out chart.png] [--image-path relative/path.png] [--timeframe day|month] [--chart-bars 120] [--width 1600] [--height 1100]",
+    "  node chart-basics.js --input price-history.json [--png-out chart.png] [--image-path relative/path.png] [--timeframe day|week|month] [--chart-bars 120] [--width 1600] [--height 1100]",
     "",
     "Notes:",
     "  - The input JSON must include bars with date and close.",
     "  - --timeframe day (default) draws daily candles with MA5/20/60/120/200 and volume MA5/20/60.",
-    "  - --timeframe month (alias --monthly) aggregates the daily bars into monthly OHLCV and draws MA5/10/20/60 (months) plus volume MA5/10/20; supply several years of daily history so the longer monthly averages have enough data.",
+    "  - --timeframe week (alias --weekly) / month (alias --monthly) aggregates the daily bars into weekly / monthly OHLCV and draws MA5/10/20/60 (weeks / months) plus volume MA5/10/20; supply enough daily history so the longer averages have data.",
     "  - high and low are required for Bollinger and Ichimoku overlays to be fully useful.",
     "  - volume is optional but recommended for volume panel and participation read.",
     "  - When --png-out is set, the script writes the main trend chart to that path and sibling overlay, momentum, volume, structure, and pattern charts to *-overlay.png, *-momentum.png, *-volume.png, *-structure.png, and *-pattern.png.",
@@ -1803,8 +1805,9 @@ function pickTickIndices(length, count) {
   return [...indices].sort((a, b) => a - b);
 }
 
-function dateLabel(dateString, monthly) {
-  return monthly ? dateString.slice(0, 7) : dateString.slice(5);
+function dateLabel(dateString, unit) {
+  if (unit === "month") return dateString.slice(0, 7);
+  return dateString.slice(5);
 }
 
 function valueToY(value, minValue, maxValue, top, height) {
@@ -1938,7 +1941,10 @@ function buildChartPngs(data, bars, metrics, options) {
     minusDi: metrics.adxSeriesData.minusDi.slice(startIndex),
   };
 
-  const isMonthly = metrics.maUnit === "month";
+  const maUnit = metrics.maUnit === "month" ? "month" : metrics.maUnit === "week" ? "week" : "day";
+  const isMonthly = maUnit === "month";
+  const unitSuffix = maUnit === "month" ? "개월" : maUnit === "week" ? "주" : "일";
+  const timeframeName = maUnit === "month" ? "월봉" : maUnit === "week" ? "주봉" : "일봉";
   const maColorPalette = [theme.ma5, theme.ma20, theme.ma60, theme.ma120, theme.ma200];
   const volMaColorPalette = [theme.volMa5, theme.volMa20, theme.volMa60];
   const priceMaLines = metrics.priceMovingAverages.map((m, i) => ({
@@ -1946,7 +1952,7 @@ function buildChartPngs(data, bars, metrics, options) {
     value: m.value,
     color: maColorPalette[i % maColorPalette.length],
     series: m.series.slice(startIndex),
-    legend: isMonthly ? `${m.period}개월선` : `${m.period}일선`,
+    legend: `${m.period}${unitSuffix}선`,
     label: `MA${m.period}`,
   }));
   const volumeMaLines = metrics.volumeMovingAverages.map((m, i) => ({
@@ -1954,8 +1960,8 @@ function buildChartPngs(data, bars, metrics, options) {
     value: m.value,
     color: volMaColorPalette[i % volMaColorPalette.length],
     series: m.series.slice(startIndex),
-    legend: isMonthly ? `${m.period}개월 거래량 이평` : `${m.period}일 거래량 이평`,
-    label: isMonthly ? `${m.period}개월` : `${m.period}일`,
+    legend: `${m.period}${unitSuffix} 거래량 이평`,
+    label: `${m.period}${unitSuffix}`,
   }));
 
   const volumeMax = Math.max(...barsWindow.map((bar) => (Number.isFinite(bar.volume) ? bar.volume : 0)), 1);
@@ -2064,7 +2070,7 @@ function buildChartPngs(data, bars, metrics, options) {
     dateTickIndices.forEach((index) => {
       const x = xForSlot(index);
       drawLine(buffer, width, height, x, margin.top + headerHeight, x, chartBottom, theme.grid, 1);
-      drawText(buffer, width, height, x, labelBottom, dateLabel(barsWindow[index].date, isMonthly), theme.muted, 2, "center");
+      drawText(buffer, width, height, x, labelBottom, dateLabel(barsWindow[index].date, maUnit), theme.muted, 2, "center");
     });
     if (totalSlotsForGrid > barsWindow.length) {
       const latestX = xForSlot(barsWindow.length - 1);
@@ -2264,7 +2270,7 @@ function buildChartPngs(data, bars, metrics, options) {
     drawLine(buffer, width, height, margin.left + plotWidth, panelTop, margin.left + plotWidth, panelTop + panelHeight, theme.border, 1);
 
     drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
-    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 거래량 이동평균 (${isMonthly ? "월봉" : "일봉"})`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 거래량 이동평균 (${timeframeName})`, theme.muted, 2);
     drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
 
     let legendX = margin.left;
@@ -2349,7 +2355,7 @@ function buildChartPngs(data, bars, metrics, options) {
     drawLine(buffer, width, height, margin.left + plotWidth, priceTop, margin.left + plotWidth, volumeTop + mainVolumeHeight, theme.border, 1);
 
     drawText(buffer, width, height, margin.left, margin.top + 4, chartTitle, theme.text, 3);
-    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 주가 추세 (${isMonthly ? "월봉" : "일봉"})`, theme.muted, 2);
+    drawText(buffer, width, height, margin.left, margin.top + 34, `${data.ticker || "UNKNOWN"} 주가 추세 (${timeframeName})`, theme.muted, 2);
     drawText(buffer, width, height, margin.left + plotWidth, margin.top + 10, `기준일 ${metrics.latest.date}`, theme.muted, 2, "right");
 
     const legendY = margin.top + 56;
@@ -2661,7 +2667,7 @@ function buildChartPngs(data, bars, metrics, options) {
     dateTickIndices.forEach((index) => {
       const x = xForSlot(index);
       drawLine(buffer, width, height, x, priceTop, x, priceTop + structurePriceHeight, theme.grid, 1);
-      drawText(buffer, width, height, x, priceTop + structurePriceHeight + 14, dateLabel(barsWindow[index].date, isMonthly), theme.muted, 2, "center");
+      drawText(buffer, width, height, x, priceTop + structurePriceHeight + 14, dateLabel(barsWindow[index].date, maUnit), theme.muted, 2, "center");
     });
     drawText(buffer, width, height, margin.left + candleAreaWidth / 2, priceTop + structurePriceHeight + 42, "날짜", theme.muted, 2, "center");
 
@@ -3237,6 +3243,45 @@ function aggregateBarsToMonthly(bars) {
   });
 }
 
+function weekKey(dateString) {
+  const d = new Date(`${dateString}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+function aggregateBarsToWeekly(bars) {
+  const groups = new Map();
+  const order = [];
+  for (const bar of bars) {
+    if (!bar || typeof bar.date !== "string" || bar.date.length < 10) {
+      continue;
+    }
+    const key = weekKey(bar.date);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key).push(bar);
+  }
+  return order.map((key) => {
+    const group = groups.get(key);
+    const opener = group.find((b) => Number.isFinite(b.open));
+    const highs = group.map((b) => b.high).filter(Number.isFinite);
+    const lows = group.map((b) => b.low).filter(Number.isFinite);
+    const volumes = group.map((b) => b.volume).filter(Number.isFinite);
+    const last = group[group.length - 1];
+    return {
+      date: last.date,
+      open: opener ? opener.open : last.close,
+      high: highs.length ? Math.max(...highs) : last.close,
+      low: lows.length ? Math.min(...lows) : last.close,
+      close: last.close,
+      volume: volumes.length ? volumes.reduce((a, b) => a + b, 0) : 0,
+    };
+  });
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.input) {
@@ -3259,19 +3304,23 @@ function main() {
   const dailyBars = normalizeTechnicalBars(data.bars || []);
   requireValidTechnicalBars(dailyBars);
 
-  const monthly = args.timeframe === "month";
-  const bars = monthly ? aggregateBarsToMonthly(dailyBars) : dailyBars;
-  if (monthly && bars.length < 2) {
-    throw new Error("Not enough history to build monthly bars from the supplied daily data.");
+  const timeframe = args.timeframe;
+  const bars = timeframe === "month" ? aggregateBarsToMonthly(dailyBars)
+    : timeframe === "week" ? aggregateBarsToWeekly(dailyBars)
+    : dailyBars;
+  if (timeframe !== "day" && bars.length < 2) {
+    throw new Error(`Not enough history to build ${timeframe} bars from the supplied daily data.`);
   }
-  const metricsOptions = monthly
+  const metricsOptions = timeframe === "month"
     ? { maPeriods: [5, 10, 20, 60], volMaPeriods: [5, 10, 20], maUnit: "month" }
-    : {};
+    : timeframe === "week"
+      ? { maPeriods: [5, 10, 20, 60], volMaPeriods: [5, 10, 20], maUnit: "week" }
+      : {};
   const metrics = buildTechnicalMetrics(bars, metricsOptions);
 
   const renderArgs = { ...args };
-  if (monthly && !args.chartBarsExplicit) {
-    renderArgs.chartBars = 60;
+  if (timeframe !== "day" && !args.chartBarsExplicit) {
+    renderArgs.chartBars = timeframe === "month" ? 60 : 100;
   }
   const pngInfo = args.pngOut ? buildChartPngs(data, bars, metrics, renderArgs) : null;
 

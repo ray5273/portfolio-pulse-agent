@@ -106,12 +106,12 @@ export function renderMessage(analysis, artifactPaths) {
     artifactPaths.volume,
     artifactPaths.structure,
     artifactPaths.pattern,
-    artifactPaths.mainMonthly,
-    artifactPaths.overlayMonthly,
-    artifactPaths.momentumMonthly,
-    artifactPaths.volumeMonthly,
-    artifactPaths.structureMonthly,
-    artifactPaths.patternMonthly
+    artifactPaths.mainWeekly,
+    artifactPaths.overlayWeekly,
+    artifactPaths.momentumWeekly,
+    artifactPaths.volumeWeekly,
+    artifactPaths.structureWeekly,
+    artifactPaths.patternWeekly
   ].filter(Boolean);
   return [
     `${analysis.ticker} ${analysis.name}: ${signalLabel(analysis.signal)} (${analysis.score}/100)`,

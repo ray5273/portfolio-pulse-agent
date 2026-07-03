@@ -742,7 +742,7 @@ function buildMetrics(bars, options = {}) {
   const volumeMaPeriods = Array.isArray(options.volMaPeriods) && options.volMaPeriods.length
     ? options.volMaPeriods
     : [5, 20, 60];
-  const maUnit = options.maUnit === "month" ? "month" : "day";
+  const maUnit = options.maUnit === "month" || options.maUnit === "week" ? options.maUnit : "day";
   const closes = bars.map((bar) => bar.close);
   const highs = bars.map((bar) => bar.high);
   const lows = bars.map((bar) => bar.low);

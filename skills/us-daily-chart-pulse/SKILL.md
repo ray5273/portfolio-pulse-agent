@@ -7,7 +7,7 @@ description: Generate daily US stock chart artifacts and Hermes Telegram-ready p
 
 Generate a daily US stock chart pulse for a configured watchlist and prepare Telegram-ready payload artifacts for Hermes delivery.
 
-Telegram images are rendered by the vendored `ray5273/stock-analysis-skill` `kr-stock-analysis` `chart-basics.js` workflow: main trend (with MA5/20/60/120/200 and price labels), overlay, momentum, volume moving-average, structure, and pattern/wave charts — rendered on both a daily and a monthly (월봉, MA5/10/20/60개월) timeframe.
+Telegram images are rendered by the vendored `ray5273/stock-analysis-skill` `kr-stock-analysis` `chart-basics.js` workflow: main trend (with MA5/20/60/120/200 and price labels), overlay, momentum, volume moving-average, structure, and pattern/wave charts — rendered on both a daily and a weekly (주봉, MA5/10/20/60주) timeframe.
 
 ## When To Use
 
@@ -73,13 +73,13 @@ For each ticker, write:
 - `chart-volume.png`
 - `chart-structure.png`
 - `chart-pattern.png`
-- `chart-monthly.png`
-- `chart-monthly-overlay.png`
-- `chart-monthly-momentum.png`
-- `chart-monthly-volume.png`
-- `chart-monthly-structure.png`
-- `chart-monthly-pattern.png`
-- `chart-analysis-monthly.md`
+- `chart-weekly.png`
+- `chart-weekly-overlay.png`
+- `chart-weekly-momentum.png`
+- `chart-weekly-volume.png`
+- `chart-weekly-structure.png`
+- `chart-weekly-pattern.png`
+- `chart-analysis-weekly.md`
 - `chart-structure-zones.csv`
 - `chart-pattern-waves.csv`
 - `result.json`
@@ -94,4 +94,4 @@ For Telegram image attachments in cron, attach `hermes-send-us-batches.py` as th
 
 Hermes cron should run with `--workdir "$HERMES_HOME"`. The sender script uses `$HERMES_HOME/config/us-daily-chart-pulse/watchlist.json` by default and writes artifacts under `$HERMES_HOME/artifacts/us-daily-chart-pulse`. `US_WATCHLIST` remains supported as an override; relative override paths are resolved from the Hermes config directory.
 
-Each successful ticker batch includes `chart.png`, `chart-overlay.png`, `chart-momentum.png`, `chart-volume.png`, `chart-structure.png`, and `chart-pattern.png` in that order, immediately followed by the six monthly charts (`chart-monthly.png`, `chart-monthly-overlay.png`, `chart-monthly-momentum.png`, `chart-monthly-volume.png`, `chart-monthly-structure.png`, `chart-monthly-pattern.png`) — twelve images per ticker. The final response should be a short local summary such as `Sent N/M ticker batches`.
+Each successful ticker batch includes `chart.png`, `chart-overlay.png`, `chart-momentum.png`, `chart-volume.png`, `chart-structure.png`, and `chart-pattern.png` in that order, immediately followed by the six weekly charts (`chart-weekly.png`, `chart-weekly-overlay.png`, `chart-weekly-momentum.png`, `chart-weekly-volume.png`, `chart-weekly-structure.png`, `chart-weekly-pattern.png`) — twelve images per ticker. The final response should be a short local summary such as `Sent N/M ticker batches`.

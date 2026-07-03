@@ -44,7 +44,7 @@ async function renderChartBasics({ inputPath, outputPath, chartPython, timeframe
         outputPath,
         "--image-path",
         path.basename(outputPath),
-        ...(timeframe === "month" ? ["--timeframe", "month"] : [])
+        ...(timeframe && timeframe !== "day" ? ["--timeframe", timeframe] : [])
       ],
       {
         env: {
@@ -85,12 +85,12 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
     volume: path.join(tickerDir, "chart-volume.png"),
     structure: path.join(tickerDir, "chart-structure.png"),
     pattern: path.join(tickerDir, "chart-pattern.png"),
-    mainMonthly: path.join(tickerDir, "chart-monthly.png"),
-    overlayMonthly: path.join(tickerDir, "chart-monthly-overlay.png"),
-    momentumMonthly: path.join(tickerDir, "chart-monthly-momentum.png"),
-    volumeMonthly: path.join(tickerDir, "chart-monthly-volume.png"),
-    structureMonthly: path.join(tickerDir, "chart-monthly-structure.png"),
-    patternMonthly: path.join(tickerDir, "chart-monthly-pattern.png")
+    mainWeekly: path.join(tickerDir, "chart-weekly.png"),
+    overlayWeekly: path.join(tickerDir, "chart-weekly-overlay.png"),
+    momentumWeekly: path.join(tickerDir, "chart-weekly-momentum.png"),
+    volumeWeekly: path.join(tickerDir, "chart-weekly-volume.png"),
+    structureWeekly: path.join(tickerDir, "chart-weekly-structure.png"),
+    patternWeekly: path.join(tickerDir, "chart-weekly-pattern.png")
   };
 
   const chartDataPath = path.join(tickerDir, "chart-data.json");
@@ -111,11 +111,11 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
     outputPath: artifactPaths.main,
     chartPython
   });
-  const monthlyAnalysisMarkdown = await renderChartBasics({
+  const weeklyAnalysisMarkdown = await renderChartBasics({
     inputPath: chartDataPath,
-    outputPath: artifactPaths.mainMonthly,
+    outputPath: artifactPaths.mainWeekly,
     chartPython,
-    timeframe: "month"
+    timeframe: "week"
   });
 
   const relativeArtifacts = {
@@ -125,12 +125,12 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
     volume: rel(process.cwd(), artifactPaths.volume),
     structure: rel(process.cwd(), artifactPaths.structure),
     pattern: rel(process.cwd(), artifactPaths.pattern),
-    mainMonthly: rel(process.cwd(), artifactPaths.mainMonthly),
-    overlayMonthly: rel(process.cwd(), artifactPaths.overlayMonthly),
-    momentumMonthly: rel(process.cwd(), artifactPaths.momentumMonthly),
-    volumeMonthly: rel(process.cwd(), artifactPaths.volumeMonthly),
-    structureMonthly: rel(process.cwd(), artifactPaths.structureMonthly),
-    patternMonthly: rel(process.cwd(), artifactPaths.patternMonthly)
+    mainWeekly: rel(process.cwd(), artifactPaths.mainWeekly),
+    overlayWeekly: rel(process.cwd(), artifactPaths.overlayWeekly),
+    momentumWeekly: rel(process.cwd(), artifactPaths.momentumWeekly),
+    volumeWeekly: rel(process.cwd(), artifactPaths.volumeWeekly),
+    structureWeekly: rel(process.cwd(), artifactPaths.structureWeekly),
+    patternWeekly: rel(process.cwd(), artifactPaths.patternWeekly)
   };
   const message = renderMessage(analysis, relativeArtifacts);
   const payload = {
@@ -162,7 +162,7 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
   };
 
   await writeFile(path.join(tickerDir, "chart-analysis.md"), analysisMarkdown, "utf8");
-  await writeFile(path.join(tickerDir, "chart-analysis-monthly.md"), monthlyAnalysisMarkdown, "utf8");
+  await writeFile(path.join(tickerDir, "chart-analysis-weekly.md"), weeklyAnalysisMarkdown, "utf8");
   await writeFile(path.join(tickerDir, "message.md"), `${message}\n`, "utf8");
   await writeJson(path.join(tickerDir, "send-payload.json"), payload);
 
@@ -185,12 +185,12 @@ export async function writeTickerArtifacts({ item, rows, outputRoot, runDate, dr
       volume: relativeArtifacts.volume,
       structure: relativeArtifacts.structure,
       pattern: relativeArtifacts.pattern,
-      mainMonthly: relativeArtifacts.mainMonthly,
-      overlayMonthly: relativeArtifacts.overlayMonthly,
-      momentumMonthly: relativeArtifacts.momentumMonthly,
-      volumeMonthly: relativeArtifacts.volumeMonthly,
-      structureMonthly: relativeArtifacts.structureMonthly,
-      patternMonthly: relativeArtifacts.patternMonthly
+      mainWeekly: relativeArtifacts.mainWeekly,
+      overlayWeekly: relativeArtifacts.overlayWeekly,
+      momentumWeekly: relativeArtifacts.momentumWeekly,
+      volumeWeekly: relativeArtifacts.volumeWeekly,
+      structureWeekly: relativeArtifacts.structureWeekly,
+      patternWeekly: relativeArtifacts.patternWeekly
     }
   };
   await writeJson(path.join(tickerDir, "result.json"), result);
