@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const hermesHome = path.resolve(process.env.HERMES_HOME || path.join(os.homedir(), '.hermes'));
 const configDir = path.join(hermesHome, 'config/krx-trend-portfolio-monitor');
-const isoToday = () => new Intl.DateTimeFormat(en-CA,{timeZone:Asia/Seoul,year:numeric,month:2-digit,day:2-digit}).format(new Date());
+const isoToday = () => new Date(Date.now()+32400000).toISOString().slice(0, 10);
 const usage = () => `Usage: krx-trend-portfolio-monitor [--dry-run] [--date YYYY-MM-DD] [--config path] [--output-dir path] [--emit-payload|--emit-hermes-send-batch]`;
 function args(argv) { const a={dryRun:false,date:isoToday(),config:path.join(configDir,'monitor.json'),outputDir:path.join(root,'.tmp/krx-trend-portfolio-monitor'),emitPayload:false,emitBatch:false}; for(let i=0;i<argv.length;i++){const x=argv[i]; if(x==='--dry-run')a.dryRun=true; else if(x==='--date'||x==='--config'||x==='--output-dir') a[{ '--date':'date','--config':'config','--output-dir':'outputDir'}[x]]=argv[++i]; else if(x==='--emit-payload')a.emitPayload=true; else if(x==='--emit-hermes-send-batch')a.emitBatch=true; else if(x==='--help'||x==='-h'){console.log(usage());process.exit(0)} else throw Error(`Unknown argument: ${x}`)} if(!/^\d{4}-\d\d-\d\d$/.test(a.date))throw Error('Invalid --date'); if(a.emitPayload&&a.emitBatch)throw Error('Choose one emit mode'); return a; }
 async function json(p, fallback) { return existsSync(p) ? JSON.parse(await readFile(p,'utf8')) : fallback; }
