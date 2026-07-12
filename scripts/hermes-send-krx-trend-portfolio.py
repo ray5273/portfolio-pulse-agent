@@ -19,6 +19,8 @@ def main():
     cmd=[NODE if Path(NODE).exists() else 'node',str(CLI),'--config',str(CONFIG/'monitor.json'),'--output-dir',str(HOME/'artifacts/krx-trend-portfolio-monitor'),'--emit-hermes-send-batch']
     if os.environ.get('KRX_TREND_DRY_RUN','').lower() in ('1','true','yes'):cmd.append('--dry-run')
     if os.environ.get('KRX_TREND_DATE'):cmd += ['--date',os.environ['KRX_TREND_DATE']]
+    refresh=subprocess.run([NODE if Path(NODE).exists() else 'node',str(HOME/'scripts/build-trend-monitor-cache.js')],text=True,capture_output=True)
+    if refresh.returncode: raise RuntimeError(f'Cache refresh failed: {refresh.stderr.strip()}')
     run=subprocess.run(cmd,text=True,capture_output=True)
     if run.returncode:
         print(json.dumps({'summary':'Trend monitor generation failed','success':False,'error':run.stderr.strip(),'wakeAgent':True},ensure_ascii=False));return 1
