@@ -1,6 +1,7 @@
 {
-  "universeFile": "~/path/to/krx-top300.json",
-  "priceFile": "~/path/to/adjusted-daily-prices.json",
+  "top300File": "~/.cache/krx-trend-portfolio-monitor/top300.json",
+  "normalizedDir": "~/.cache/krx-trend-portfolio-monitor/kr-strategy-backtest/2026-07-10/normalized",
+  "dartPanelDir": "~/.cache/krx-trend-portfolio-monitor/kr-strategy-backtest/dart-quarterly-panel",
   "targetVol": 0.18,
   "kospiPrices": []
 }
