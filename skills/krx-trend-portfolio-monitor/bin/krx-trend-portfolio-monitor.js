@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadUniverse, loadPrices, fixtureUniverse } from '../lib/data.js';
+import { buildPortfolio, updateState } from '../lib/portfolio.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, '../../..');
+const hermesHome = path.resolve(process.env.HERMES_HOME || path.join(os.homedir(), '.hermes'));
+const configDir = path.join(hermesHome, 'config/krx-trend-portfolio-monitor');
+const isoToday = () => new Date().toISOString().slice(0, 10);
+const usage = () => `Usage: krx-trend-portfolio-monitor [--dry-run] [--date YYYY-MM-DD] [--config path] [--output-dir path] [--emit-payload|--emit-hermes-send-batch]`;
+function args(argv) { const a={dryRun:false,date:isoToday(),config:path.join(configDir,'monitor.json'),outputDir:path.join(root,'.tmp/krx-trend-portfolio-monitor'),emitPayload:false,emitBatch:false}; for(let i=0;i<argv.length;i++){const x=argv[i]; if(x==='--dry-run')a.dryRun=true; else if(x==='--date'||x==='--config'||x==='--output-dir') a[{ '--date':'date','--config':'config','--output-dir':'outputDir'}[x]]=argv[++i]; else if(x==='--emit-payload')a.emitPayload=true; else if(x==='--emit-hermes-send-batch')a.emitBatch=true; else if(x==='--help'||x==='-h'){console.log(usage());process.exit(0)} else throw Error(`Unknown argument: ${x}`)} if(!/^\d{4}-\d\d-\d\d$/.test(a.date))throw Error('Invalid --date'); if(a.emitPayload&&a.emitBatch)throw Error('Choose one emit mode'); return a; }
+async function json(p, fallback) { return existsSync(p) ? JSON.parse(await readFile(p,'utf8')) : fallback; }
+function markdown(s) { const add=s.changes.added.map(x=>`${x.ticker} ${x.name}`).join(', ')||'없음'; const rem=s.changes.removed.map(x=>`${x.ticker} ${x.name}`).join(', ')||'없음'; const candidates=s.candidates.map((x,i)=>`${i+1}. ${x.ticker} ${x.name} (${x.score.toFixed(1)})`).join('\n'); const target=s.monthlyTarget.map((x,i)=>`${i+1}. ${x.ticker} ${x.name}`).join('\n')||'아직 월말 신호 전'; return `# KRX 추세추종 모니터 (${s.asOf})\n\n- 다음 거래일 적용 기준: ${s.nextTradingDay}\n- KOSPI: ${s.regime.close.toLocaleString()} / SMA200 ${s.regime.sma200.toLocaleString()} / 괴리 ${s.regime.distancePct.toFixed(2)}% / **${s.regime.label}**${s.regime.changed?' (전환)':''}\n- 현재 월간 운용 목표: 주식 ${s.allocation.equityPct}% · 현금 ${s.allocation.cashPct}%\n- 다음 월간 리밸런싱 참고: 주식 ${s.referenceAllocation.equityPct}% · 현금 ${s.referenceAllocation.cashPct}%\n- 후보 공통 수: ${s.changes.common} / 편입: ${add} / 편출: ${rem}\n- 월말 갱신: ${s.monthEndRebalance ? '예 — 다음 거래일 시가 적용' : '아니오'}\n\n## 당일 감시 후보 10종목\n\n${candidates}\n\n## 실제 월간 목표\n\n${target}\n${s.warnings.length?`\n## 경고\n\n${s.warnings.map(x=>`- ${x}`).join('\n')}\n`:''}`; }
+async function main(){const a=args(process.argv.slice(2)); const cfg=await json(a.config,{}); const output=path.resolve(a.outputDir,a.date); await mkdir(output,{recursive:true}); const universe=a.dryRun?fixtureUniverse():await loadUniverse(cfg, output); const prices=a.dryRun?undefined:await loadPrices(universe,cfg,output); const statePath=path.join(path.dirname(a.config),'state.json'); const previous=await json(statePath,{}); const summary=buildPortfolio({date:a.date,universe,prices,previous,config:cfg,dryRun:a.dryRun}); summary.markdown=markdown(summary); await writeFile(path.join(output,'summary.json'),JSON.stringify(summary,null,2)); await writeFile(path.join(output,'report.md'),summary.markdown); await writeFile(statePath,JSON.stringify(updateState(previous,summary),null,2)); if(a.emitBatch) console.log(JSON.stringify([{idempotencyKey:`krx-trend-portfolio:${summary.asOf}`,text:summary.markdown}],null,2)); else if(a.emitPayload) console.log(JSON.stringify(summary,null,2)); else console.log(summary.markdown);}
+main().catch(e=>{console.error(e.stack||e.message);process.exit(1)});

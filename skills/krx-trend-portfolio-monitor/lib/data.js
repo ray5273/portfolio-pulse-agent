@@ -1,0 +1,10 @@
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
+const disallowed = /ETF|ETN|리츠|REIT|스팩|SPAC|우선주|우B|우$/i;
+export function eligible(x){return x.market && ['KOSPI','KOSDAQ'].includes(x.market) && !disallowed.test(x.name||'') && !x.preferred && !x.etf && !x.etn && !x.reit && !x.spac;}
+export async function loadUniverse(cfg, output){ const p=cfg.universeFile; if(!p||!existsSync(p)) throw Error('Universe data is unavailable. Set universeFile to a refreshed KOSPI/KOSDAQ top-300 common-stock cache.'); const xs=JSON.parse(await readFile(p,'utf8')); return xs.filter(eligible).sort((a,b)=>(b.marketCap||0)-(a.marketCap||0)).slice(0,300); }
+export async function loadPrices(universe,cfg){ if(!cfg.priceFile||!existsSync(cfg.priceFile)) throw Error('Adjusted daily price cache is unavailable. Set priceFile; production refresh must be incremental.'); const all=JSON.parse(await readFile(cfg.priceFile,'utf8')); return Object.fromEntries(universe.map(x=>[x.ticker,all[x.ticker]])); }
+function series(base, drift){return Array.from({length:260},(_,i)=>Math.round((base*(1+drift*i/260+0.02*Math.sin(i/17)))*100)/100)}
+export function fixtureUniverse(){return Array.from({length:14},(_,i)=>({ticker:String(100000+i).padStart(6,'0'),name:`테스트${i+1}`,market:i<8?'KOSPI':'KOSDAQ',marketCap:1000-i,prices:series(100+i*12,(14-i)/10),epsNow:20+i,epsPrev:10+i/2,salesNow:130+i*3,salesPrev:100+i*3})).concat([{ticker:'999999',name:'테스트 ETF',market:'KOSPI',marketCap:99999,etf:true,prices:series(999,1)}]);}

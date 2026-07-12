@@ -1,0 +1,6 @@
+{
+  "universeFile": "~/path/to/krx-top300.json",
+  "priceFile": "~/path/to/adjusted-daily-prices.json",
+  "targetVol": 0.18,
+  "kospiPrices": []
+}

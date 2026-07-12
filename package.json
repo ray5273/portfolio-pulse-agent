@@ -6,7 +6,8 @@
   "bin": {
     "daily-krx-chart-pulse": "./skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js",
     "daily-us-chart-pulse": "./skills/us-daily-chart-pulse/bin/daily-us-chart-pulse.js",
-    "watchlist-curator": "./skills/watchlist-curator/bin/watchlist-curator.js"
+    "watchlist-curator": "./skills/watchlist-curator/bin/watchlist-curator.js",
+    "krx-trend-portfolio-monitor": "./skills/krx-trend-portfolio-monitor/bin/krx-trend-portfolio-monitor.js"
   },
   "scripts": {
     "smoke": "bash scripts/smoke-test.sh",
@@ -16,7 +17,9 @@
     "curator:propose": "node skills/watchlist-curator/bin/watchlist-curator.js propose --offline --watchlist-krx examples/watchlist.example.json --watchlist-us examples/us-watchlist.example.json",
     "curator:resolve": "node skills/watchlist-curator/bin/watchlist-curator.js resolve --offline --watchlist-krx examples/watchlist.example.json --watchlist-us examples/us-watchlist.example.json",
     "pulse:dry-run": "node skills/krx-daily-chart-pulse/bin/daily-krx-chart-pulse.js --watchlist examples/watchlist.example.json --dry-run",
-    "pulse:us:dry-run": "node skills/us-daily-chart-pulse/bin/daily-us-chart-pulse.js --watchlist examples/us-watchlist.example.json --dry-run"
+    "pulse:us:dry-run": "node skills/us-daily-chart-pulse/bin/daily-us-chart-pulse.js --watchlist examples/us-watchlist.example.json --dry-run",
+    "smoke:trend-monitor": "bash scripts/smoke-test-trend-monitor.sh",
+    "trend-monitor:dry-run": "node skills/krx-trend-portfolio-monitor/bin/krx-trend-portfolio-monitor.js --dry-run --emit-payload"
   },
   "engines": {
     "node": ">=18"
