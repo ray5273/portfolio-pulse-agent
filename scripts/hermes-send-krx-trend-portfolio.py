@@ -11,11 +11,24 @@ CLI=HOME/'skills/krx-trend-portfolio-monitor/bin/krx-trend-portfolio-monitor.js'
 def load(p,default):
     try:return json.loads(p.read_text())
     except FileNotFoundError:return default
+def load_hermes_env():
+    env_file = HOME / ".env"
+    if not env_file.exists():
+        return
+    for raw in env_file.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip(chr(34)).strip(chr(39)))
+
+
 def sender():
     sys.path.insert(0,str(HOME/'hermes-agent'))
     from tools.send_message_tool import send_message_tool
     return send_message_tool
 def main():
+    load_hermes_env()
     cmd=[NODE if Path(NODE).exists() else 'node',str(CLI),'--config',str(CONFIG/'monitor.json'),'--output-dir',str(HOME/'artifacts/krx-trend-portfolio-monitor'),'--emit-hermes-send-batch']
     if os.environ.get('KRX_TREND_DRY_RUN','').lower() in ('1','true','yes'):cmd.append('--dry-run')
     if os.environ.get('KRX_TREND_DATE'):cmd += ['--date',os.environ['KRX_TREND_DATE']]
