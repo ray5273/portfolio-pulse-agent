@@ -93,18 +93,21 @@ def main():
     # retain it until the next weekly signal. A daily regime OFF still exits to cash.
     weekly_equity = float(weekly_risk["exposure"])
     equity = weekly_equity if on else 0
+    daily_equity = (min(1, .18 / vol) if vol else 1) if on else 0
     changes = []
     for t in tickers:
         row = by[t][as_of]; prior_row = by[t].get(dates[-2]); change = (row["close"] / prior_row["close"] - 1) * 100 if prior_row else 0
-        changes.append(f"- {names[t]}({t}): {row['close']:,.0f}원 ({change:+.2f}%) · 목표 {equity * 100 / len(tickers):.2f}%")
+        changes.append(f"- {names[t]}({t}): {row['close']:,.0f}원 ({change:+.2f}%) · 주간 {equity * 100 / len(tickers):.2f}% / 오늘 참고 {daily_equity * 100 / len(tickers):.2f}%")
     label = "ON" if on else "OFF"
+    action = "레짐 ON 유지 · 다음 거래일 매도 없음" if on else "레짐 OFF · 다음 거래일 시가 전량 매도 후 현금화"
     message = "\n".join([
         f"KRX 주간 레짐+변동성 포트폴리오 ({as_of})",
         f"주간 신호 {weekly['signalDate']} → 적용 {weekly['executionDate']} · 다음 주간 확인: 다음 5거래일 신호 후",
         f"KOSPI {close:,.2f} / SMA200 {sma:,.2f} / 괴리 {distance * 100:+.2f}% / {label}",
-        f"주간 확정 60일 변동성 타기팅 · 참고 현재 60일 실현변동성 {vol * 100:.2f}%",
-        f"목표 주식 {equity * 100:.2f}% · 현금 {(1-equity) * 100:.2f}%",
-        "", "보유 10종목 (오늘 종가 / 목표 비중)", *changes,
+        f"주간 확정: 주식 {equity * 100:.2f}% · 현금 {(1-equity) * 100:.2f}%",
+        f"오늘 변동성 참고: 60일 실현변동성 {vol * 100:.2f}% · 주식 {daily_equity * 100:.2f}% · 현금 {(1-daily_equity) * 100:.2f}%",
+        f"행동: {action}",
+        "", "보유 10종목 (오늘 종가 / 주간 목표 / 오늘 참고)", *changes,
     ])
     key = f"{as_of}:{weekly['signalDate']}"
     if prior.get("sentKey") != key:
