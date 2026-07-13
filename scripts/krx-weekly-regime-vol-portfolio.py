@@ -9,6 +9,7 @@ NAME = "krx-weekly-regime-vol-portfolio"
 CONFIG = HOME / "config" / NAME
 CACHE = Path.home() / ".cache" / "krx-trend-portfolio-monitor"
 LEDGER = CACHE / "weekly-rebalance-rs-backtest-through-2026-07-10.json"
+RISK_LEDGER = CACHE / "weekly-mdd-overlay-backtest-through-2026-07-10.json"
 KOSPI = CACHE / "kospi.json"
 STATE = CONFIG / "state.json"
 OUT = HOME / "artifacts" / NAME
@@ -83,9 +84,15 @@ def main():
     for before, today in zip(dates[-61:-1], dates[-60:]):
         returns.append(sum(by[t][today]["close"] / by[t][before]["close"] - 1 for t in tickers) / len(tickers))
     vol = (standard_deviation(returns) or 0) * math.sqrt(252)
+    risk_events = read(RISK_LEDGER, {}).get("strategies", {}).get("minerviniRS__E", {}).get("events", [])
+    weekly_risk = next((x for x in reversed(risk_events) if x.get("signalDate") == weekly["signalDate"]), None)
+    if weekly_risk is None: raise RuntimeError("Weekly regime-vol allocation ledger is unavailable")
     # Refreshing KOSPI is handled by the existing cache helper before this script runs.
     close, sma, distance, on = regime(read(KOSPI, {}).get("bars", []), prior)
-    equity = (min(1, .18 / vol) if vol else 1) if on else 0
+    # Match the backtest: set the volatility exposure at the weekly rebalance and
+    # retain it until the next weekly signal. A daily regime OFF still exits to cash.
+    weekly_equity = float(weekly_risk["exposure"])
+    equity = weekly_equity if on else 0
     changes = []
     for t in tickers:
         row = by[t][as_of]; prior_row = by[t].get(dates[-2]); change = (row["close"] / prior_row["close"] - 1) * 100 if prior_row else 0
@@ -95,7 +102,7 @@ def main():
         f"KRX 주간 레짐+변동성 포트폴리오 ({as_of})",
         f"주간 신호 {weekly['signalDate']} → 적용 {weekly['executionDate']} · 다음 주간 확인: 다음 5거래일 신호 후",
         f"KOSPI {close:,.2f} / SMA200 {sma:,.2f} / 괴리 {distance * 100:+.2f}% / {label}",
-        f"60일 실현변동성 {vol * 100:.2f}% · 목표 18.00%",
+        f"주간 확정 60일 변동성 타기팅 · 참고 현재 60일 실현변동성 {vol * 100:.2f}%",
         f"목표 주식 {equity * 100:.2f}% · 현금 {(1-equity) * 100:.2f}%",
         "", "보유 10종목 (오늘 종가 / 목표 비중)", *changes,
     ])
